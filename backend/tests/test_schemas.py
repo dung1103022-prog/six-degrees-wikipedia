@@ -85,7 +85,8 @@ def test_resolve_and_error_all_fields(client, q):
 
 @pytest.mark.spec("SCH-08")
 def test_openapi_path(openapi):
-    # Only the PathResponse part. Whether the auto-generated 422 entry must be removed
-    # from OpenAPI is an open question (see implementation report), so it is not asserted.
+    # SPEC v2.3: a framework-generated 422 entry MAY appear in OpenAPI; it is deliberately
+    # not asserted either way, and OpenAPI is not customised to remove it. Runtime behaviour
+    # (always 200 PathResponse) is covered by PTH-02..08.
     ref = response_schema_ref(openapi, "/api/path", "200")
     assert ref.endswith("/PathResponse")

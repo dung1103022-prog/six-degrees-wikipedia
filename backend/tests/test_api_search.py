@@ -91,7 +91,7 @@ def test_both_unresolved_reports_from(client):
     [{"to": "A"}, {"from": "A"}, {"from": "", "to": "A"}, {"from": "A", "to": ""}],
 )
 def test_missing_or_empty_params(client, params):
-    # The ">255 chars" part of API-08 depends on C-4 (not yet approved) and is not tested.
+    # The ">255 chars" part of API-08 depends on C-4 (not approved) and is not tested (SPEC §7.0).
     assert client.get("/api/search", params=params).status_code == 422
 
 
@@ -185,7 +185,8 @@ def test_resolve_unresolved_and_ambiguous(client):
     assert [c["name"] for c in body["candidates"]] == ["Person One", "Person Two"]
 
 
-# Inputs from §7.1. Whitespace-only inputs are excluded: their /api/search behaviour is C-3.
+# Inputs from §7.1. Whitespace-only, empty and >255-char inputs are excluded: their behaviour
+# is unspecified (C-3, C-4 not approved; SPEC §3.2, §3.6, API-20).
 API20_INPUTS = sorted(
     set(GRAPH)
     | {a["alias"] for a in ALIASES}
@@ -207,6 +208,11 @@ def test_resolve_and_search_agree(client, text):
         expected_code = "AMBIGUOUS_NAME" if res["status"] == "ambiguous" else "UNRESOLVED_NAME"
         assert d["code"] == expected_code
         assert d["candidates"] == res["candidates"]
+
+
+@pytest.mark.spec("API-21")
+def test_resolve_without_q_is_422(client):
+    assert client.get("/api/resolve").status_code == 422
 
 
 @pytest.mark.spec("API-20")

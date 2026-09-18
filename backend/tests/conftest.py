@@ -2,7 +2,8 @@
 
 - Blocks all outbound network connections for the whole test session.
 - Validates that every @pytest.mark.spec("ID") refers to an ID defined in SPEC.md §7.
-- Reports Phase 1 test IDs (SPEC §7.0) that have no test yet (informational only).
+- Reports required Phase 1 test IDs (SPEC §7.0: phase IDs minus IDs that fully depend
+  on a not-yet-approved decision) that have no test yet.
 """
 from __future__ import annotations
 
@@ -64,15 +65,42 @@ def spec_test_ids() -> set[str]:
     return set(_ID_ROW.findall(section))
 
 
-def _phase1_ids(all_ids: set[str]) -> set[str]:
-    """Phase 1 groups as listed in SPEC §7.0."""
+_TOKEN = re.compile(r"^([A-Z]{2,3})-(\*|\d{2})(?:\.\.(\d{2}))?$")
 
-    def rng(prefix: str, lo: int, hi: int) -> set[str]:
-        return {f"{prefix}-{i:02d}" for i in range(lo, hi + 1)}
 
-    wanted = {i for i in all_ids if i.split("-")[0] in {"BFS", "RES", "API"}}
-    wanted |= rng("SCH", 1, 8) | rng("PTH", 1, 10) | rng("DAT", 1, 7) | rng("DAT", 9, 16)
-    return wanted & all_ids
+def _section_70(text: str) -> str:
+    return text[text.index("### 7.0 ") : text.index("### 7.1 ")]
+
+
+def _expand(token: str, all_ids: set[str]) -> set[str]:
+    m = _TOKEN.match(token.strip())
+    if not m:
+        raise pytest.UsageError(f"SPEC §7.0: cannot parse test-ID token {token!r}")
+    prefix, lo, hi = m.groups()
+    if lo == "*":
+        return {i for i in all_ids if i.startswith(prefix + "-")}
+    hi = hi or lo
+    return {f"{prefix}-{n:02d}" for n in range(int(lo), int(hi) + 1)} & all_ids
+
+
+def required_ids(phase: int) -> set[str]:
+    """SPEC §7.0: IDs of the phase minus IDs whose scope is "toàn bộ" in the
+    "Test ID phụ thuộc điểm chưa duyệt" table. Both tables are read from SPEC.md."""
+    text = SPEC_PATH.read_text(encoding="utf-8")
+    all_ids = spec_test_ids()
+    section = _section_70(text)
+    phase_ids: set[str] = set()
+    for row in re.findall(r"^\| ([^|]+) \| (\d+)\b[^|]*\|$", section, re.MULTILINE):
+        tokens, row_phase = row
+        if int(row_phase) == phase:
+            for token in tokens.split(","):
+                phase_ids |= _expand(token, all_ids)
+    pending = set(
+        re.findall(r"^\| ([A-Z]{2,3}-\d{2}) \| [^|]+ \| toàn bộ \|", section, re.MULTILINE)
+    )
+    if not phase_ids:
+        raise pytest.UsageError(f"SPEC §7.0: no test IDs found for phase {phase}")
+    return phase_ids - pending
 
 
 _collected_ids: set[str] = set()
@@ -95,12 +123,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
-    missing = sorted(_phase1_ids(spec_test_ids()) - _collected_ids)
-    terminalreporter.section("SPEC Phase 1 test-ID coverage")
+    required = required_ids(1)
+    missing = sorted(required - _collected_ids)
+    terminalreporter.section("SPEC Phase 1 required test-ID coverage (SPEC §7.0)")
+    terminalreporter.write_line(f"required: {len(required)}, covered: {len(required & _collected_ids)}")
     if missing:
-        terminalreporter.write_line("Phase 1 IDs without a test: " + ", ".join(missing))
+        terminalreporter.write_line("Missing Phase 1 required IDs: " + ", ".join(missing))
     else:
-        terminalreporter.write_line("All Phase 1 IDs have at least one test.")
+        terminalreporter.write_line("All required Phase 1 IDs have at least one test.")
 
 
 # --------------------------------------------------------------------------- fixtures
