@@ -1,0 +1,107 @@
+{
+  "A": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/00.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/A",
+    "description": "Fixture person A"
+  },
+  "B": {
+    "thumbnail": null,
+    "wiki_url": "https://en.wikipedia.org/wiki/B",
+    "description": null
+  },
+  "C": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/04.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/C",
+    "description": "Fixture person C"
+  },
+  "D": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/05.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/D",
+    "description": "Fixture person D"
+  },
+  "E": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/06.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/E",
+    "description": "Fixture person E"
+  },
+  "F": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/08.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/F",
+    "description": "Fixture person F"
+  },
+  "X": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/17.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/X",
+    "description": "Fixture person X"
+  },
+  "Y": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/20.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Y",
+    "description": "Fixture person Y"
+  },
+  "X²": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/19.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/X²",
+    "description": "Fixture person X²"
+  },
+  "X2": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/18.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/X2",
+    "description": "Fixture person X2"
+  },
+  "Person One": {
+    "thumbnail": null,
+    "wiki_url": "https://en.wikipedia.org/wiki/Person_One",
+    "description": "Fixture person Person One"
+  },
+  "Person Two": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/12.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Person_Two",
+    "description": null
+  },
+  "Third Person": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/15.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Third_Person",
+    "description": "Fixture person Third Person"
+  },
+  "Shinzo Abe": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/14.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Shinzo_Abe",
+    "description": "Fixture person Shinzo Abe"
+  },
+  "Earth, Wind & Fire": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/07.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Earth,_Wind_&_Fire",
+    "description": "Fixture person Earth, Wind & Fire"
+  },
+  "Florence + the Machine": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/09.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Florence_+_the_Machine",
+    "description": "Fixture person Florence + the Machine"
+  },
+  "Prince (musician)": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/13.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Prince_(musician)",
+    "description": "Fixture person Prince (musician)"
+  },
+  "Who? (band)": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/16.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Who?_(band)",
+    "description": "Fixture person Who? (band)"
+  },
+  "AC/DC": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/01.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/AC/DC",
+    "description": "Fixture person AC/DC"
+  },
+  "Beyoncé": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/03.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Beyoncé",
+    "description": "Fixture person Beyoncé"
+  },
+  "Nguyễn Du": {
+    "thumbnail": "https://upload.wikimedia.org/fixture/10.jpg",
+    "wiki_url": "https://en.wikipedia.org/wiki/Nguyễn_Du",
+    "description": "Fixture person Nguyễn Du"
+  }
+}

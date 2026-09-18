@@ -1,0 +1,51 @@
+{
+  "A": [
+    "B",
+    "E"
+  ],
+  "B": [
+    "C"
+  ],
+  "C": [
+    "A",
+    "D"
+  ],
+  "D": [
+    "F"
+  ],
+  "E": [
+    "D"
+  ],
+  "F": [],
+  "X": [
+    "Y"
+  ],
+  "Y": [],
+  "X²": [],
+  "X2": [],
+  "Person One": [],
+  "Person Two": [],
+  "Third Person": [],
+  "Shinzo Abe": [
+    "Earth, Wind & Fire"
+  ],
+  "Earth, Wind & Fire": [
+    "Florence + the Machine"
+  ],
+  "Florence + the Machine": [
+    "Prince (musician)"
+  ],
+  "Prince (musician)": [
+    "Who? (band)"
+  ],
+  "Who? (band)": [
+    "AC/DC"
+  ],
+  "AC/DC": [
+    "Beyoncé"
+  ],
+  "Beyoncé": [
+    "Nguyễn Du"
+  ],
+  "Nguyễn Du": []
+}

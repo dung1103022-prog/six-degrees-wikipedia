@@ -1,0 +1,57 @@
+[
+  {
+    "alias": "A",
+    "target": "B",
+    "source": "en_redirect"
+  },
+  {
+    "alias": "Abe Shinzo",
+    "target": "Shinzo Abe",
+    "source": "en_redirect"
+  },
+  {
+    "alias": "Mr. Ambiguous",
+    "target": "Person One",
+    "source": "en_redirect"
+  },
+  {
+    "alias": "Mr. Ambiguous",
+    "target": "Person Two",
+    "source": "en_redirect"
+  },
+  {
+    "alias": "Shinzō Abe",
+    "target": "Shinzo Abe",
+    "source": "en_redirect"
+  },
+  {
+    "alias": "Shinzō Abe",
+    "target": "Shinzo Abe",
+    "source": "ja_redirect"
+  },
+  {
+    "alias": "X2",
+    "target": "Third Person",
+    "source": "en_redirect"
+  },
+  {
+    "alias": "ビヨンセ",
+    "target": "Beyoncé",
+    "source": "ja_title"
+  },
+  {
+    "alias": "安倍 晋三",
+    "target": "Shinzo Abe",
+    "source": "ja_redirect"
+  },
+  {
+    "alias": "安倍晋三",
+    "target": "Shinzo Abe",
+    "source": "ja_title"
+  },
+  {
+    "alias": "阮攸",
+    "target": "Nguyễn Du",
+    "source": "ja_title"
+  }
+]

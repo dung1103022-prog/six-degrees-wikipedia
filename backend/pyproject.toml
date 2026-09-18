@@ -1,0 +1,26 @@
+[project]
+name = "sixth-degree-backend"
+version = "0.1.0"
+description = "Six Degrees of Wikipedia (Python) — backend. Contract: ../SPEC.md"
+requires-python = ">=3.12"
+# Pinned to the versions verified by the Phase 1 test suite (SPEC §0.2).
+dependencies = [
+  "fastapi==0.141.1",
+  "pydantic==2.13.5",
+  "starlette==1.6.0",
+  "uvicorn",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest==9.1.1",
+  "httpx==0.28.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers"
+markers = [
+  "spec(test_id): links a test to a test ID in SPEC.md §7 (SPEC §0.2)",
+]
