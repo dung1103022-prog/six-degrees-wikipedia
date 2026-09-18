@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.2 (duyệt C-10..C-13; phân pha implementation; quy tắc test-first)
+**Version:** 2.3 (quy tắc: chỉ điểm đã duyệt mới implement/test; sửa contract Phase 1 cho khớp)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,22 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.3 — Chỉ điểm "Đã duyệt" mới được implement và bắt buộc test
+
+Quyết định nguồn: chủ project, 2026-09-18 (sau báo cáo Phase 1). Không điểm "Chưa duyệt" nào được duyệt ngược; contract được sửa cho khớp với phạm vi đã duyệt.
+
+- **§0.4 (sửa nguyên tắc):** "Đã duyệt" + thuộc pha hiện tại → phải implement và phải có test. "Chưa duyệt"/"OPEN" → không implement, không bắt buộc test. Không được thay đổi behavior chỉ để có đủ test ID của một điểm chưa duyệt. Bỏ câu cũ "Chưa duyệt … được implement như đã viết".
+- **§0.4 bảng:** C-2 ghi rõ không có behavior riêng (behavior tương ứng đến từ D-5, đã duyệt). C-4 ghi rõ phạm vi: cận trên 255 ký tự cho `from`/`to`/`q` và cận dưới 1 ký tự cho `q`; yêu cầu `from`/`to` không rỗng có từ v1 và không thuộc C-4.
+- **§3.2 `/api/search`:** bỏ cận trên 255 ký tự (C-4) và quy tắc input chỉ gồm khoảng trắng (C-3) khỏi contract; ghi rõ hai trường hợp này **chưa được quy định**. Contract còn lại: thiếu hoặc rỗng → 422.
+- **§3.6 `/api/resolve`:** contract chỉ còn "thiếu `q` → 422". `q=""` và `q` dài hơn 255 ký tự **chưa được quy định** (C-4); behavior hiện tại của code ở hai trường hợp này không phải contract.
+- **§5.3:** chữ ký đổi thành `validate_path(names, edges)`.
+- **§6.1, §6.3, §6.5:** G-6, A-5, A-6, A-7 đánh dấu "chưa duyệt — không kiểm tra ở pha 1".
+- **§7.0:** định nghĩa lại coverage bắt buộc của pha = (ID thuộc pha) ∩ (ID gắn với requirement đã duyệt). Thêm bảng "Test ID phụ thuộc điểm chưa duyệt" (dạng máy đọc được; `conftest.py` đọc trực tiếp bảng này).
+- **§7.4 SCH-08:** OpenAPI có thể chứa response 422 do FastAPI tự sinh; điều đó không làm thay đổi runtime contract của `/api/path`.
+- **§7.5:** API-08 ghi rõ phần "dài 256 ký tự" phụ thuộc C-4; API-17 phụ thuộc C-3. **Thêm API-21:** `GET /api/resolve` thiếu `q` → 422 (behavior đã duyệt ở §3.6 nhưng trước đây chưa có test ID).
+- **§7.7:** DAT-14 ghi rõ phần A-5 phụ thuộc C-8; DAT-10, DAT-15 phụ thuộc C-7/C-8.
+- **§9:** thêm mục "Ghi chú kỹ thuật cần review" (cảnh báo deprecation của Starlette `TestClient` + `httpx`); không đổi dependency ở pha 1.
 
 ### v2.2 — Duyệt C-10..C-13, phân pha implementation, quy tắc test-first
 
@@ -110,14 +126,20 @@ Bản đầu tiên.
 - Chính sách sử dụng Wikimedia API phải được đối chiếu với tài liệu hiện hành khi bắt đầu pha 3.
 
 ### 0.4 Trạng thái quyết định
-Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa. "Chưa duyệt" nghĩa là nội dung đang có trong spec và được implement như đã viết, nhưng chủ project chưa xác nhận riêng; nếu chủ project thay đổi, spec và test sẽ được sửa theo.
+Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa. *(viết lại ở v2.3)*
+
+**Nguyên tắc:**
+1. **"Đã duyệt"/"Đã chốt" + thuộc pha hiện tại** → phải implement và phải có test (§7.0).
+2. **"Chưa duyệt" hoặc "OPEN"** → **không implement** và **không bắt buộc test** ở pha hiện tại. Nội dung của điểm đó trong spec chỉ là đề xuất, chưa phải contract.
+3. **Không được thay đổi behavior** chỉ để có đủ test ID của một điểm chưa duyệt.
+4. Behavior mà code tình cờ có ở vùng thuộc một điểm chưa duyệt **không phải contract**: không được viết test để khóa nó, và client không được dựa vào nó.
 
 | ID | Nội dung tóm tắt | Vị trí | Trạng thái |
 |---|---|---|---|
 | C-1 | Canonical cũng được tra theo match key, trước alias; exact canonical luôn thắng | §4A.3 | Đã duyệt (v2.1) |
-| C-2 | Match key không xóa khoảng trắng, nên `安倍　晋三` chỉ khớp khi có alias `安倍 晋三`; không tự khớp `安倍晋三` | §4A.2 | Chưa duyệt |
+| C-2 | Ghi chú giải thích: match key không xóa khoảng trắng, nên `安倍　晋三` chỉ khớp khi có alias `安倍 晋三`. **Không có behavior riêng**: behavior này là hệ quả trực tiếp của định nghĩa `match_key` theo D-5 (đã duyệt), được kiểm tra bởi RES-05, RES-06 | §4A.2 | Chưa duyệt |
 | C-3 | Input chỉ gồm khoảng trắng → 404 `UNRESOLVED_NAME` ở `/api/search`, không phải 422 | §3.2 | Chưa duyệt |
-| C-4 | Giới hạn độ dài 1..255 ký tự cho `from`, `to`, `q`; vượt → 422 | §3.2, §3.6 | Chưa duyệt |
+| C-4 | Cận trên 255 ký tự cho `from`, `to`, `q` và cận dưới 1 ký tự cho `q`, vi phạm → 422. (Yêu cầu `from`/`to` không rỗng → 422 có từ v1, không thuộc C-4.) | §3.2, §3.6 | Chưa duyệt |
 | C-5 | `/api/resolve` luôn 200; `/api/search` chuyển unresolved/ambiguous thành 404 | §3.6 | Đã duyệt (v2.1) |
 | C-6 | Langlink trỏ tới redirect trên jawiki: `ja_title` là bài đích, tiêu đề gốc thành `ja_redirect` | §6.4 bước 5 | Chưa duyệt |
 | C-7 | Không canonical name hay alias nào chứa `_` (G-6, A-6) | §6.1, §6.3 | Chưa duyệt |
@@ -132,7 +154,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-3 | Ngôn ngữ của `og:title` / UI | §9 | **OPEN** |
 | Q-4 | Fetcher tuần tự, concurrency = 1; không có tùy chọn 2–3 | §6.4 | Đã chốt (v2.1) |
 
-Các điểm C-2, C-3, C-4, C-6..C-9 nằm trong pha 1 (C-2, C-3, C-4, C-7, C-8 qua loader/resolver/API) sẽ được implement đúng như spec đang viết. Nếu chủ project sửa bất kỳ điểm nào, sửa SPEC.md trước (§0.1).
+Các điểm C-3, C-4, C-7, C-8 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-6, C-9 thuộc pha 3. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
 ---
 
@@ -283,7 +305,7 @@ class ErrorResponse(BaseModel):
 - Không chứa alias.
 
 ### 3.2 `GET /api/search?from={input}&to={input}` *(sửa ở v2)*
-- **Query:** `from`, `to` bắt buộc; độ dài 1..255 ký tự. Giá trị có thể là canonical name, alias tiếng Anh (en redirect), tên tiếng Nhật (ja title) hoặc alias tiếng Nhật (ja redirect).
+- **Query:** `from`, `to` bắt buộc và không rỗng. *(v2.3)* Cận trên về độ dài chưa được quy định (C-4, chưa duyệt). Giá trị có thể là canonical name, alias tiếng Anh (en redirect), tên tiếng Nhật (ja title) hoặc alias tiếng Nhật (ja redirect).
 - Tham số Python cho `from` dùng `Query(alias="from")`.
 - Mỗi tham số được NFC-normalize rồi đi qua resolver (§4A). BFS chỉ chạy khi cả hai đều ở trạng thái `resolved`.
 - Response `from`/`to` là **canonical name đã resolve**, không echo input.
@@ -295,10 +317,12 @@ class ErrorResponse(BaseModel):
 | Cả hai resolve về cùng một người (kể cả qua alias khác nhau) | 200 | `found=true`, `path=[person]`, `length=0` |
 | Một tham số `unresolved` | 404 | `ErrorResponse`, `code="UNRESOLVED_NAME"`, `candidates=[]` |
 | Một tham số `ambiguous` | 404 | `ErrorResponse`, `code="AMBIGUOUS_NAME"`, `candidates` ≥ 2 |
-| Thiếu tham số / rỗng / dài hơn 255 ký tự | 422 | Mặc định của FastAPI |
+| Thiếu tham số / rỗng | 422 | Mặc định của FastAPI |
+| Dài hơn 255 ký tự | *chưa quy định* (C-4) | — |
+| Chỉ gồm khoảng trắng | *chưa quy định* (C-3) | — |
 
 - Resolve và kiểm tra `from` trước `to`. Nếu `from` lỗi, báo lỗi của `from` (`param="from"`) và không cần resolve `to`.
-- Input chỉ gồm khoảng trắng (có độ dài ≥ 1 nên qua được 422) có match key rỗng → `UNRESOLVED_NAME`.
+- *(v2.3)* Input chỉ gồm khoảng trắng và input dài hơn 255 ký tự: behavior **chưa được quy định** (C-3, C-4 chưa duyệt). Behavior hiện tại của code ở hai trường hợp này không phải contract (§0.4 nguyên tắc 4).
 - Khai báo trong decorator: `response_model=SearchResponse`, `responses={404: {"model": ErrorResponse}}`.
 - Raise lỗi bằng `HTTPException(status_code=404, detail=ErrorDetail(...).model_dump())` (hoặc tương đương theo version), sao cho body khớp `ErrorResponse`.
 
@@ -373,9 +397,10 @@ Xem mục 5.
 
 ### 3.6 `GET /api/resolve?q={input}` *(mới ở v2)*
 - **Mục đích:** frontend kiểm tra một input trước khi tìm kiếm, và hiển thị danh sách ứng viên khi tên mơ hồ.
-- **Query:** `q` bắt buộc, độ dài 1..255 ký tự. NFC-normalize rồi đi qua resolver (§4A). Không gọi network.
-- **Response:** luôn **200** với `ResolveResponse` cho mọi kết quả resolve (`resolved`, `ambiguous`, `unresolved`). Kết quả resolve là tài nguyên được yêu cầu, nên "không resolve được" là một kết quả hợp lệ (cùng tinh thần ADR-011).
-- **422:** thiếu `q`, rỗng, hoặc dài hơn 255 ký tự.
+- **Query:** `q` bắt buộc. NFC-normalize rồi đi qua resolver (§4A). Không gọi network. *(v2.3)* Ràng buộc độ dài của `q` (cận dưới 1, cận trên 255) chưa được quy định (C-4, chưa duyệt).
+- **Response:** luôn **200** với `ResolveResponse` cho mọi kết quả resolve (`resolved`, `ambiguous`, `unresolved`) của một `q` thuộc phạm vi đã quy định. Kết quả resolve là tài nguyên được yêu cầu, nên "không resolve được" là một kết quả hợp lệ (cùng tinh thần ADR-011).
+- **422:** thiếu `q`.
+- *(v2.3)* **`q=""` và `q` dài hơn 255 ký tự: chưa được quy định** (C-4). Behavior hiện tại của code ở hai trường hợp này không phải contract (§0.4 nguyên tắc 4); không có test khóa behavior đó.
 - `/api/search` và `/api/resolve` dùng **chung một hàm resolver**; cùng input phải cho cùng kết quả ở cả hai endpoint.
 
 ```json
@@ -532,7 +557,7 @@ Quy tắc hệ quả:
 - **Lưu ý version:** ràng buộc `min_length`/`max_length` trên `list[str]` có thể được hiểu là độ dài list hoặc độ dài từng phần tử tùy version FastAPI/Pydantic. Không dựa vào cú pháp này: validate số phần tử và độ dài từng phần tử một cách tường minh trong `validate_path` (§5.3), và khóa hành vi bằng test SHR-05..07 và PTH-05..07.
 
 ### 5.3 Validation phía server
-Logic nằm trong một hàm thuần duy nhất, `validate_path(names: list[str]) -> list[str] | None` (trả danh sách tên đã NFC nếu hợp lệ, `None` nếu không), trong `backend/app/paths.py` (pha 1; không đặt trong module của route `/share`). `/share` và `/api/path` đều chỉ gọi hàm này; không endpoint nào tự validate riêng. *(v2.1)* Hai route dùng chung phán quyết nhưng có representation riêng: `/api/path` trả JSON `PathResponse`, `/share` trả HTML (hành vi khi không hợp lệ phụ thuộc Q-2). *(v2.2)*
+Logic nằm trong một hàm thuần duy nhất, `validate_path(names: Sequence[str], edges: Mapping[str, frozenset[str]]) -> list[str] | None` *(chữ ký sửa ở v2.3)*, trong đó `edges` là dict cạnh dựng lúc khởi động (trả danh sách tên đã NFC nếu hợp lệ, `None` nếu không), trong `backend/app/paths.py` (pha 1; không đặt trong module của route `/share`). `/share` và `/api/path` đều chỉ gọi hàm này; không endpoint nào tự validate riêng. *(v2.1)* Hai route dùng chung phán quyết nhưng có representation riêng: `/api/path` trả JSON `PathResponse`, `/share` trả HTML (hành vi khi không hợp lệ phụ thuộc Q-2). *(v2.2)*
 
 Path hợp lệ khi và chỉ khi:
 1. Số phần tử và độ dài nằm trong giới hạn 5.2;
@@ -584,7 +609,7 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 - **G-3** Không có self-loop.
 - **G-4** Không trùng lặp trong một adjacency list.
 - **G-5** Mỗi adjacency list được sắp xếp bằng `sorted()` (bảo đảm BFS tất định, I-6).
-- **G-6** *(v2)* Không canonical name nào chứa ký tự `_` (tiêu đề MediaWiki lưu `_` dưới dạng dấu cách; `_` trong dữ liệu là dấu hiệu fetcher đã đọc sai).
+- **G-6** *(v2; **chưa duyệt — C-7**; không kiểm tra ở pha 1)* Không canonical name nào chứa ký tự `_` (tiêu đề MediaWiki lưu `_` dưới dạng dấu cách; `_` trong dữ liệu là dấu hiệu fetcher đã đọc sai).
 
 ### 6.2 `data/people.json`
 ```json
@@ -621,9 +646,9 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 - **A-2** `alias` không rỗng, ở dạng NFC, và `match_key(alias) != ""`.
 - **A-3** `source` thuộc tập giá trị trên.
 - **A-4** Không có entry trùng lặp hoàn toàn (cùng `alias`, `target`, `source`).
-- **A-5** Không có entry mà `alias == target`.
-- **A-6** Không `alias` nào chứa ký tự `_` (lý do như G-6).
-- **A-7** Mảng được sắp xếp theo `(alias, target, source)` để diff giữa các lần fetch ổn định.
+- **A-5** *(chưa duyệt — C-8; không kiểm tra ở pha 1)* Không có entry mà `alias == target`.
+- **A-6** *(chưa duyệt — C-7; không kiểm tra ở pha 1)* Không `alias` nào chứa ký tự `_` (lý do như G-6).
+- **A-7** *(chưa duyệt — C-8; không kiểm tra ở pha 1)* Mảng được sắp xếp theo `(alias, target, source)` để diff giữa các lần fetch ổn định.
 
 ### 6.4 Fetcher contract (`backend/fetcher.py`) *(sửa ở v2)*
 - Input: `data/seed_names.txt` (mỗi dòng một tên).
@@ -688,8 +713,10 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 
 ### 6.5 Startup validation (`backend/app/data.py`)
 Khi khởi động, loader kiểm tra:
-- G-1..G-6, P-1..P-3, A-1..A-7;
+- G-1..G-5, P-1..P-3, A-1..A-4;
 - mọi tên và alias ở dạng NFC.
+
+*(v2.3)* G-6, A-5, A-6, A-7 (C-7, C-8) chưa duyệt nên loader **không** kiểm tra; khi được duyệt, thêm vào danh sách trên.
 
 Kiểm tra placeholder `<!--OG-->` (§5.5) là một hàm riêng, **chỉ được gọi khi route `/share` được đăng ký** (pha 2). Ở pha 1, app khởi động được khi chưa có `dist/`. *(v2.2)*
 
@@ -710,6 +737,19 @@ Sau khi validate, loader dựng `ResolverIndex` (§4A) và ghi log (không fail)
 | FE-* | 4 |
 
 Quy tắc viết test: §0.2.
+
+**Coverage bắt buộc của một pha** *(v2.3)* = các ID thuộc pha đó (bảng trên) **trừ** các ID có phạm vi "toàn bộ" trong bảng dưới. ID có phạm vi "một phần" vẫn bắt buộc, nhưng test không kiểm tra phần phụ thuộc điểm chưa duyệt. `backend/tests/conftest.py` đọc trực tiếp hai bảng này từ SPEC.md để tính coverage; không được hardcode danh sách ở nơi khác.
+
+#### Test ID phụ thuộc điểm chưa duyệt
+| ID | Phụ thuộc | Phạm vi | Phần phụ thuộc |
+|---|---|---|---|
+| API-17 | C-3 | toàn bộ | input chỉ gồm khoảng trắng ở `/api/search` |
+| DAT-10 | C-7 | toàn bộ | G-6 |
+| DAT-15 | C-7, C-8 | toàn bộ | A-6, A-7 |
+| API-08 | C-4 | một phần | trường hợp "dài 256 ký tự" |
+| DAT-14 | C-8 | một phần | trường hợp `alias == target` (A-5) |
+
+Khi một điểm được duyệt, xóa dòng tương ứng khỏi bảng này (và ghi changelog); ID đó trở thành bắt buộc.
 
 Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nhỏ tự viết** trong `backend/tests/fixtures/`, không dùng file dữ liệu thật và không gọi mạng.
 
@@ -784,7 +824,7 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | SCH-05 | Response `found=false` vẫn có đủ mọi field (`length` là `null`, `path` là `[]`) |
 | SCH-06 | *(v2)* `/openapi.json` có `GET /api/resolve` với response `ResolveResponse` |
 | SCH-07 | *(v2)* `ResolveResponse` và `ErrorDetail` luôn có đủ mọi field |
-| SCH-08 | *(v2.1)* `/openapi.json` có `GET /api/path` với response `PathResponse`; không khai báo response 422 là một kết quả mong đợi của endpoint này (xem PTH-08) |
+| SCH-08 | *(sửa ở v2.3)* `/openapi.json` có `GET /api/path` với response 200 là `PathResponse`. OpenAPI **có thể** chứa response `422` do FastAPI tự sinh cho query validation; test không được yêu cầu có hay không có entry đó, và không được tùy biến OpenAPI để loại bỏ nó. Entry 422 trong OpenAPI không thay đổi runtime contract: `/api/path` vẫn luôn trả 200 `PathResponse`, path không hợp lệ → `valid=false` (xem PTH-02..08) |
 
 ### 7.5 API
 | ID | Request | Kỳ vọng |
@@ -796,7 +836,7 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | API-05 | `from` không resolve được | 404, `code=UNRESOLVED_NAME`, `param=from`, `input` đúng, `candidates=[]` |
 | API-06 | `from` hợp lệ, `to` không resolve được | 404, `param=to` |
 | API-07 | cả hai không resolve được | 404, `param=from` |
-| API-08 | thiếu `from` / `to` rỗng / dài 256 ký tự | 422 |
+| API-08 | thiếu `from` / `to` rỗng / dài 256 ký tự | 422. *(v2.3)* Phần "dài 256 ký tự" phụ thuộc C-4 (chưa duyệt), không test ở pha 1 |
 | API-09 | tên có `&`, `+`, `?`, `(`, `/`, Unicode | encode bằng chuẩn → 200, tra đúng người |
 | API-10 | tên gửi ở dạng NFD (`Nguyễn Du` phân tách) | được NFC-normalize, 200 |
 | API-11 | `PersonMeta` với thumbnail/description null trong people.json | response trả `null`, không phải `""` |
@@ -805,10 +845,11 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | API-14 | *(v2)* `from=Abe Shinzo` | 200, `from == "Shinzo Abe"` |
 | API-15 | *(v2)* `from=安倍晋三&to=Abe Shinzo` | 200, found=true, length=0 |
 | API-16 | *(v2)* `from` là alias xung đột | 404, `code=AMBIGUOUS_NAME`, `candidates` ≥ 2, đã sắp xếp, là `PersonMeta` đầy đủ |
-| API-17 | *(v2)* `from` chỉ gồm khoảng trắng | 404, `UNRESOLVED_NAME` |
+| API-17 | *(v2; phụ thuộc C-3 — chưa duyệt)* `from` chỉ gồm khoảng trắng | 404, `UNRESOLVED_NAME` |
 | API-18 | *(v2)* `GET /api/resolve?q=安倍晋三` | 200, `status=resolved`, `person.name == "Shinzo Abe"`, `candidates=[]` |
 | API-19 | *(v2)* `GET /api/resolve` với input unresolved / ambiguous | 200, `status` tương ứng, `person=null`; `candidates` đúng theo §2 |
-| API-20 | *(v2)* mọi input trong §7.1 | `/api/resolve` và `/api/search` cho cùng kết quả resolve; không có request mạng nào được thực hiện (chặn network trong test) |
+| API-20 | *(v2)* mọi input trong §7.1, *(v2.3)* trừ input thuộc phạm vi chưa quy định (chỉ gồm khoảng trắng, rỗng, dài hơn 255 ký tự) | `/api/resolve` và `/api/search` cho cùng kết quả resolve; không có request mạng nào được thực hiện (chặn network trong test) |
+| API-21 | *(v2.3)* `GET /api/resolve` không có `q` | 422 |
 
 ### 7.6 Share
 | ID | Request | Kỳ vọng |
@@ -853,12 +894,12 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | DAT-07 | `thumbnail: ""` | fail |
 | DAT-08 | *(pha 2)* `dist/index.html` thiếu `<!--OG-->` khi route `/share` được bật | fail |
 | DAT-09 | dữ liệu hợp lệ | load thành công |
-| DAT-10 | *(v2)* canonical name chứa `_` (G-6) | fail |
+| DAT-10 | *(v2; phụ thuộc C-7 — chưa duyệt)* canonical name chứa `_` (G-6) | fail |
 | DAT-11 | *(v2)* alias có `target` không phải key của graph (A-1) | fail |
 | DAT-12 | *(v2)* alias rỗng, không NFC, hoặc match key rỗng (A-2) | fail |
 | DAT-13 | *(v2)* `source` không hợp lệ (A-3) | fail |
-| DAT-14 | *(v2)* entry trùng lặp hoàn toàn (A-4) hoặc `alias == target` (A-5) | fail |
-| DAT-15 | *(v2)* alias chứa `_` (A-6) hoặc mảng chưa sắp xếp (A-7) | fail |
+| DAT-14 | *(v2)* entry trùng lặp hoàn toàn (A-4) hoặc `alias == target` (A-5) | fail. *(v2.3)* Phần A-5 phụ thuộc C-8 (chưa duyệt), không test ở pha 1 |
+| DAT-15 | *(v2; phụ thuộc C-7, C-8 — chưa duyệt)* alias chứa `_` (A-6) hoặc mảng chưa sắp xếp (A-7) | fail |
 | DAT-16 | *(v2)* alias xung đột | load thành công, log số match key mơ hồ |
 
 ### 7.8 Fetcher (không gọi mạng)
@@ -919,6 +960,10 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
   - Phương án đề xuất: `/share` luôn trả 200 HTML; input không hợp lệ → OG mặc định, frontend hiển thị thông báo (theo §5.6). Khi đó `/share` và `/api/path` cùng một kiểu hành xử (C-12).
   - Phương án khác: trả 400 kèm HTML thông báo lỗi.
 - **Q-3 [OPEN]: Ngôn ngữ của `og:title` / UI** (tiếng Việt, tiếng Anh, hay tiếng Nhật). Format đặt trong một hằng số nên có thể đổi sau mà không ảnh hưởng contract.
+
+### Ghi chú kỹ thuật cần review *(v2.3)*
+Không phải quyết định mở; không ảnh hưởng pha 1.
+- **N-1:** với các version đã pin (`fastapi==0.141.1`, `starlette==1.6.0`, `httpx==0.28.1`), `fastapi.testclient.TestClient` phát `StarletteDeprecationWarning` về việc dùng `httpx` cho Starlette test client. Pha 1 **không** thay đổi dependency vì cảnh báo này. Review riêng khi nâng dependency hoặc trước khi mở pha 3 (fetcher dùng `httpx`).
 
 ### Đã chốt
 - **Q-1 (v2.1):** thêm `GET /api/path` (§3.7), dùng chung `validate_path` với `/share` (§5.3).
