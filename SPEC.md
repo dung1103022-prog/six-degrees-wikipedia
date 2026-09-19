@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.12 (duyệt C-8: fetcher bỏ alias == target; chốt Q-11: thumbnail giữ nguyên URL của API; duyệt C-14: `aliases.json` sắp xếp ổn định (A-7); Phase 4 vẫn chưa mở)
+**Version:** 2.13 (mở Phase 4; chốt Q-12..Q-19: stack frontend, công cụ test, cơ chế coverage FE-*, history 20 entry, Docker `DATA_DIR=/app/data`, static mount + SPA fallback, `thumbnail=None`)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,23 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.13 — Mở Phase 4 (frontend); chốt Q-12..Q-19
+
+Quyết định nguồn: chủ project, 2026-09-19. Chỉ sửa SPEC.md: chưa có `frontend/`, chưa có code hay test của Phase 4. **Không thay đổi contract** của Phase 1–3 (`/api/*`, `/share`, `validate_path`, dữ liệu, fetcher).
+
+- **Mở Phase 4** (§0.3): phạm vi gồm frontend, static mount + SPA fallback (§3.4) và Dockerfile (§6.6); test bắt buộc là FE-* và SPA-*.
+- **Q-12 (chốt):** frontend dùng React + Vite + TypeScript, mã nguồn ở `frontend/` (ADR-014).
+- **Q-13 (chốt):** test frontend dùng Vitest + Testing Library; không có test e2e trong trình duyệt ở phiên bản này (ADR-014, §7.9).
+- **Q-14 (chốt):** vẽ đồ thị bằng Sigma.js + Graphology, chỉ dùng dữ liệu của `SearchResponse` (ADR-014).
+- **Q-15 (chốt):** lịch sử tìm kiếm giữ tối đa **20 entry** (ADR-006, FE-02).
+- **Q-16 (chốt):** test frontend gắn ID bằng thẻ `@spec FE-NN` trong tên test; phải có cơ chế kiểm tra đủ mọi FE-ID bắt buộc, đọc danh sách từ SPEC.md, và bộ test **thất bại** khi thiếu (§7.9). Coverage của FE-* do cơ chế này kiểm; coverage của SPA-* do `conftest.py` kiểm như các pha trước. Xem N-3.
+- **Q-17 (chốt):** image Docker chạy với `DATA_DIR=/app/data`; dataset chính thức (ba file `graph.json`, `people.json`, `aliases.json`) được copy vào image lúc build; image không chạy fetcher và không gọi mạng (§6.6, ADR-012). Dockerfile không có test ID tự động ở v2.13.
+- **Q-18 (chốt):** static mount `DIST_DIR` + SPA catch-all chỉ được đăng ký khi `enable_share=True`; `/api/*` không khớp route nào → 404, không trả `index.html`. §3.4 viết lại; thêm §7.10 với SPA-01..SPA-05 (test pytest, dùng fixture `dist/`).
+- **Q-19 (chốt):** mọi nơi frontend hiển thị `PersonMeta` phải xử lý `thumbnail = null` bằng placeholder; thêm FE-06.
+- **Bảng §7:** §7.0 thêm hàng SPA-* ở pha 4; FE-02 sửa (giới hạn 20); FE-05 làm rõ phải có bản build; thêm FE-06; §7.9 thêm quy tắc marker/coverage; thêm §7.10.
+- **Ghi chú kỹ thuật mới (không phải quyết định):** N-3 (`conftest.py` phải loại FE-* khỏi coverage pytest khi pha 4 được đưa vào), N-4 (nội dung entry lịch sử và xử lý entry trùng chưa quy định). §9 cập nhật.
+- Không thay đổi: Q-1..Q-11, C-1..C-14, ADR-001..ADR-013 (ADR-006 và ADR-012 chỉ được bổ sung), G/P/A/S/R/F/N invariants.
 
 ### v2.12 — Duyệt C-8 (alias == target bị bỏ), duyệt C-14 (aliases.json sắp xếp ổn định), chốt Q-11 (thumbnail giữ nguyên)
 
@@ -207,7 +224,7 @@ Bản đầu tiên.
 
 ### 0.2 Test-first
 - Mỗi test contract trong §7 thuộc pha đang làm phải được viết **trước hoặc cùng commit** với code mà nó kiểm tra. Không có code nào của một pha được coi là xong khi test tương ứng chưa có và chưa pass.
-- Mỗi test gắn ID của §7 bằng marker `@pytest.mark.spec("BFS-01")` (một test có thể mang nhiều ID; một ID có thể có nhiều test). Đăng ký marker `spec` trong cấu hình pytest để marker lạ bị báo lỗi.
+- Mỗi test gắn ID của §7 bằng marker `@pytest.mark.spec("BFS-01")` (một test có thể mang nhiều ID; một ID có thể có nhiều test). Đăng ký marker `spec` trong cấu hình pytest để marker lạ bị báo lỗi. *(v2.13, Q-16)* Test frontend (Vitest) gắn ID bằng thẻ `@spec FE-NN` trong tên test, với cơ chế kiểm tra riêng ở §7.9.
 - Invariant trong spec (I-*, F-*, N-*, S-*, R-*, G-*, P-*, A-*) được kiểm tra thông qua các test ID tương ứng ở §7.
 - Test dùng fixture tự viết trong `backend/tests/fixtures/`, không dùng dữ liệu thật và không gọi mạng. Test phải chặn network (mọi kết nối ra ngoài làm test fail).
 - Kiểm tra version thực tế của FastAPI và Pydantic sau khi cài, rồi pin trong `pyproject.toml`. Mọi hành vi phụ thuộc version (alias `from`, ràng buộc trên `list[str]`) phải được khóa bằng test, không dựa vào trí nhớ.
@@ -218,13 +235,13 @@ Bản đầu tiên.
 | 1 | data loader + startup validation (không gồm placeholder), BFS, resolver, `validate_path`, schema, `/api/people`, `/api/search`, `/api/resolve`, `/api/path` | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | **Được phép bắt đầu** |
 | 2 | `/share` (bật tường minh, §0.3 "Chế độ chạy"), kiểm tra `dist/index.html` và placeholder `<!--OG-->` lúc khởi động | SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | **Được phép bắt đầu** *(v2.4)* |
 | 3 | fetcher (`backend/fetcher.py`) | FET-* | **Được phép bắt đầu** *(v2.9)* |
-| 4 | frontend | FE-* | Chưa mở; chờ chủ project mở pha; Q-3 đã chốt (tiếng Việt, v2.5) |
+| 4 | frontend (`frontend/`, ADR-014), static mount + SPA fallback (§3.4), Dockerfile (§6.6) | FE-*, SPA-* | **Được phép bắt đầu** *(v2.13)*; Q-3 đã chốt (tiếng Việt, v2.5) |
 
 - Không viết code của pha chưa mở, kể cả code "chuẩn bị sẵn".
 - Pha 1 không phụ thuộc `dist/` hay frontend build: ở chế độ Phase 1 (bên dưới) app phải khởi động và chạy test được khi chưa có `dist/`.
 - **Chế độ chạy của app** *(v2.5, Q-5)*: việc `/share` có mặt hay không do **cấu hình tường minh** quyết định, không bao giờ được suy ra từ việc `dist/index.html` có tồn tại hay không.
   - **Chế độ Phase 1:** `/share` bị **tắt** tường minh. App khởi động và chạy được khi chưa có `dist/`; không có route `/share`; không kiểm tra `dist/index.html` hay placeholder.
-  - **Chế độ Phase 2+:** `/share` được **bật**; đây là chế độ mặc định của app từ Phase 2. `dist/index.html` bắt buộc phải tồn tại và hợp lệ (§5.5); thiếu hoặc không hợp lệ → app **không khởi động** (fail fast, §6.5). Không được bỏ route `/share` một cách âm thầm.
+  - **Chế độ Phase 2+:** `/share` được **bật**; đây là chế độ mặc định của app từ Phase 2. `dist/index.html` bắt buộc phải tồn tại và hợp lệ (§5.5); thiếu hoặc không hợp lệ → app **không khởi động** (fail fast, §6.5). Không được bỏ route `/share` một cách âm thầm. *(v2.13, Q-18)* Từ Phase 4, chế độ này cũng đăng ký static mount của `DIST_DIR` và SPA catch-all (§3.4); không có cờ cấu hình riêng cho hai thứ đó.
   - Test của pha 1 phải tắt `/share` tường minh, để kết quả test không phụ thuộc vào môi trường của máy chạy test (thư mục làm việc, biến môi trường, có hay không có `dist/`).
   - Cấu hình bật/tắt là tham số tường minh `enable_share` của app factory (`create_app`): chế độ Phase 1 và test pha 1 dùng `enable_share=False`; mặc định `enable_share=True` (chế độ Phase 2+ / production). `enable_share` không bao giờ được suy ra từ việc `dist/index.html` có tồn tại hay không. Khi `enable_share=False`: không kiểm tra `dist/` và `/share` không được đăng ký. Đây không phải contract HTTP.
   - **`DIST_DIR`** *(v2.6, Q-10)*: cấu hình runtime của server cho vị trí thư mục `dist/`; biến môi trường `DIST_DIR`, mặc định `./dist`. Chỉ được đọc khi `enable_share=True`. Khi `enable_share=False` không đọc `DIST_DIR` và không yêu cầu có thư mục `dist/`. Xem §5.5.
@@ -267,6 +284,14 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-9 | `n` trong `og:title` = số cạnh của path = `len(path) - 1` = `SearchResponse.length` (không phải số node); ví dụ `A → B → C` có `n = 2` | §5.4, §7.6 | Đã chốt (v2.6) |
 | Q-10 | `DIST_DIR` là cấu hình runtime chính thức (env var, mặc định `./dist`); chỉ đọc khi `enable_share=True`; `DIST_DIR/index.html` là template của `/share`; không thuộc dữ liệu hay contract frontend | §0.3, §5.5 | Đã chốt (v2.6) |
 | Q-11 | `thumbnail` trong `people.json` giữ nguyên URL do MediaWiki API trả về: không cắt `utm_*`/query string, không sửa kích thước trong URL | §6.2, §6.4, §5.4 | Đã chốt (v2.12) |
+| Q-12 | Frontend dùng React + Vite + TypeScript; mã nguồn ở `frontend/` | ADR-014 | Đã chốt (v2.13) |
+| Q-13 | Test frontend dùng Vitest + Testing Library; không có test e2e trong trình duyệt | ADR-014, §7.9 | Đã chốt (v2.13) |
+| Q-14 | Vẽ đồ thị bằng Sigma.js + Graphology, chỉ dùng dữ liệu của `SearchResponse` | ADR-014 | Đã chốt (v2.13) |
+| Q-15 | Lịch sử tìm kiếm tối đa 20 entry | ADR-006, FE-02 | Đã chốt (v2.13) |
+| Q-16 | Test frontend gắn ID bằng thẻ `@spec FE-NN`; cơ chế kiểm tra đủ FE-ID bắt buộc đọc từ SPEC.md và làm bộ test thất bại khi thiếu | §0.2, §7.9 | Đã chốt (v2.13) |
+| Q-17 | Docker: `DATA_DIR=/app/data`; dataset chính thức được copy vào image lúc build; image không chạy fetcher, không gọi mạng | ADR-012, §6.6 | Đã chốt (v2.13) |
+| Q-18 | Static mount `DIST_DIR` + SPA catch-all chỉ khi `enable_share=True`; `/api/*` không khớp → 404 (không phải `index.html`) | §3.4, §7.10 | Đã chốt (v2.13) |
+| Q-19 | `thumbnail = null` hiển thị placeholder ở mọi nơi hiển thị `PersonMeta` | §7.9 (FE-06) | Đã chốt (v2.13) |
 
 Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-14 đã được duyệt ở v2.12: loader kiểm A-7 (test DAT-15, phần A-7) và fetcher ghi mảng đã sắp xếp (FET-07, FET-14). C-8 đã được duyệt ở v2.12: phần loader (chấp nhận `alias == target`) đã đúng sẵn và có test ở DAT-14; phần fetcher (bỏ entry) thuộc pha 3, test FET-20. C-6, C-9 thuộc pha 3 và đã được duyệt ở v2.7, nhưng pha 3 vẫn chưa mở nên chưa implement. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
@@ -301,7 +326,7 @@ Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được im
 - **Rejected:** WebSocket, SSE.
 
 ### ADR-006: Lịch sử tìm kiếm lưu ở localStorage
-- **Decision:** Hoàn toàn phía frontend. Backend không có endpoint lịch sử.
+- **Decision:** Hoàn toàn phía frontend. Backend không có endpoint lịch sử. *(v2.13, Q-15)* Giữ tối đa **20 entry**; thêm entry khi đã đủ 20 thì entry cũ nhất bị bỏ. Con số 20 nằm trong một hằng số duy nhất.
 - **Consequences:** Gắn với trình duyệt; mất khi người dùng xóa dữ liệu trình duyệt.
 
 ### ADR-007: Share bằng path mã hóa trong URL, server validate lại
@@ -337,7 +362,7 @@ Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được im
 - **Decision:** `found: false` trả 200 với schema đầy đủ. Lỗi thật dùng HTTP status + mã lỗi máy đọc được (`detail.code`).
 
 ### ADR-012: Một container, FastAPI serve cả SPA
-- **Decision:** Multi-stage Dockerfile: build frontend → `python:3.12-slim`. Không tách frontend sang host khác (tránh CORS và hai lần deploy). Deploy bằng tính năng auto-deploy từ GitHub của nền tảng hosting; không tự dựng pipeline CD.
+- **Decision:** Multi-stage Dockerfile: build frontend → `python:3.12-slim`. Không tách frontend sang host khác (tránh CORS và hai lần deploy). Deploy bằng tính năng auto-deploy từ GitHub của nền tảng hosting; không tự dựng pipeline CD. *(v2.13, Q-17)* Image chạy với `DATA_DIR=/app/data` và dataset chính thức được copy vào image lúc build (§6.6). Node chỉ có ở stage build, không có ở image chạy.
 
 ### ADR-013: Resolver tên đa ngôn ngữ theo hướng precompute-first *(mới ở v2)*
 - **Context:** User cần nhập được tên bằng tiếng Anh và tiếng Nhật (ví dụ `Shinzo Abe`, `安倍晋三`). Graph phải giữ nguyên là English Wikipedia graph. Không được phát sinh chi phí hosting, database, cache server hay hạ tầng mới.
@@ -353,6 +378,17 @@ Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được im
   - Wikidata labels/aliases: alias không được đảm bảo duy nhất, tỷ lệ mơ hồ cao hơn redirect.
   - Graph riêng cho từng ngôn ngữ hoặc chuyển sang Japanese Wikipedia graph.
   - Autocomplete / endpoint gợi ý tiền tố.
+
+### ADR-014: Stack frontend *(mới ở v2.13; Q-12, Q-13, Q-14, Q-15)*
+- **Context:** §3.5 (type sinh từ OpenAPI), ADR-005 (animation theo level ở frontend), ADR-006 (lịch sử ở localStorage), ADR-012 (một container). Project gốc tham khảo dùng React + sigma.js.
+- **Decision:**
+  - **Ngôn ngữ và build:** React + Vite + TypeScript. Mã nguồn ở `frontend/`; bản build là `dist/` của §3.4 và §5.5.
+  - **Test:** Vitest + Testing Library (môi trường DOM do Vitest cấu hình). Không có test e2e trong trình duyệt. Test không gọi mạng thật (§0.2): mọi lời gọi API được mock bằng payload theo các ví dụ ở §3, và `fetch` chưa được mock làm test fail. Cách gắn ID và kiểm coverage: §7.9.
+  - **Đồ thị:** Sigma.js (render) + Graphology (cấu trúc dữ liệu phía client). Dữ liệu vẽ chỉ lấy từ `SearchResponse` (`levels`, `path`); không thêm endpoint hay field để phục vụ việc vẽ. Bố cục, màu, kiểu animation do implementation quyết định và không thuộc contract. Sigma cần WebGL nên không chạy được trong môi trường DOM của test: test không được yêu cầu render Sigma thật (component vẽ được mock hoặc tách khỏi logic dựng dữ liệu).
+  - **Lịch sử:** tối đa 20 entry (ADR-006).
+  - **Version:** pin version của thư viện sau khi cài (lockfile được commit); hành vi phụ thuộc version phải được khóa bằng test, không dựa vào trí nhớ (cùng tinh thần §0.2).
+- **Consequences:** Cần Node để build (stage build của Dockerfile), không cần Node lúc chạy. Type API sinh bằng `openapi-typescript` từ `/openapi.json` (§3.5).
+- **Rejected (ở phiên bản này):** test e2e trong trình duyệt; test render WebGL của Sigma; endpoint hay field mới cho việc vẽ đồ thị.
 
 ---
 
@@ -502,9 +538,13 @@ GET /api/search?from=%E5%AE%89%E5%80%8D%E6%99%8B%E4%B8%89&to=Barack+Obama
 ### 3.3 `GET /share?p={name}&p={name}...`
 Xem mục 5.
 
-### 3.4 Static / SPA
-- `dist/` được mount làm static; mọi route không khớp API trả `index.html` (SPA fallback).
-- Route `/share` và `/api/*` phải được đăng ký **trước** catch-all.
+### 3.4 Static / SPA *(viết lại ở v2.13, Q-18)*
+- **Khi nào:** chỉ khi `enable_share=True` (chế độ Phase 2+, §0.3). Lý do: `DIST_DIR` chỉ được đọc và `dist/` chỉ bắt buộc có ở chế độ này (Q-5, Q-10). Khi `enable_share=False` thì **không** đăng ký static mount hay catch-all, không đọc `DIST_DIR`, và mọi đường dẫn không thuộc `/api/*` trả 404 mặc định của FastAPI.
+- **Static mount:** thư mục `DIST_DIR` được mount làm static; một file có trong `DIST_DIR` (ví dụ `assets/app.js`) được phục vụ đúng nội dung của nó tại đường dẫn tương ứng.
+- **SPA fallback:** một `GET` không khớp route đã đăng ký, không khớp file tĩnh và không bắt đầu bằng `/api/` trả **200 `text/html`** với nội dung `index.html` **nguyên văn** (giữ nguyên `<!--OG-->`, vốn chỉ là comment HTML; OG meta chỉ do `/share` chèn, §5.4).
+- **`/api/*` không khớp route nào** trả **404** mặc định của FastAPI (JSON), **không** trả `index.html`.
+- **Thứ tự:** `/api/*` và `/share` được đăng ký **trước** static mount và catch-all; hai thứ sau không được che route đã đăng ký.
+- Kiểm bởi SPA-01..SPA-05 (§7.10).
 
 ### 3.5 Frontend types
 - Sinh TypeScript type từ `/openapi.json` bằng `openapi-typescript`. Không viết tay type cho response API.
@@ -862,6 +902,15 @@ Bất kỳ vi phạm nào → raise lỗi với thông báo chỉ rõ tên/entry
 
 Sau khi validate, loader dựng `ResolverIndex` (§4A) và ghi log (không fail): số alias theo từng `source`, số match key mơ hồ.
 
+### 6.6 Dataset trong image Docker *(mới ở v2.13, Q-17)*
+- **Cấu hình runtime của image:** `DATA_DIR=/app/data` (đặt trong Dockerfile). `DIST_DIR` (Q-10) phải trỏ tới bản build frontend nằm trong image; vị trí cụ thể không thuộc contract.
+- **Dataset chính thức** là ba file `graph.json`, `people.json`, `aliases.json` (§6.1–6.3) trong thư mục `data/` của build context, được **copy vào `/app/data` lúc build image**. Dataset không được tải, sinh hay chỉnh lúc khởi động, và không cần volume hay mount lúc chạy.
+- **Image không chứa và không chạy fetcher** (không cài extra `fetcher`, tức không có `httpx`). Production runtime không gọi mạng (ADR-009).
+- Dữ liệu thiếu hoặc vi phạm §6.5 → app không khởi động, nên container thoát ngay (fail fast). Không có cơ chế sửa dữ liệu lúc chạy.
+- **Đổi dataset = build lại image.**
+- Phase 4 **không tạo, không sửa và không chọn** dataset. Việc xác nhận nội dung `data/` là dataset chính thức là quyết định riêng của chủ project.
+- Dockerfile **không có test ID tự động** ở v2.13; kiểm bằng `docker build` và chạy container thủ công, và không thuộc coverage của §7.0.
+
 ---
 
 ## 7. Test cases
@@ -873,8 +922,11 @@ Sau khi validate, loader dựng `ResolverIndex` (§4A) và ghi log (không fail)
 | SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | 2 |
 | FET-* | 3 |
 | FE-* | 4 |
+| SPA-* | 4 |
 
 Quy tắc viết test: §0.2.
+
+*(v2.13)* Hai hàng của pha 4 do hai công cụ kiểm coverage khác nhau: **FE-\*** do cơ chế của frontend (§7.9, Q-16); **SPA-\*** do `backend/tests/conftest.py` như các pha trước. Cả hai đọc bảng này từ SPEC.md, không hardcode. Xem N-3.
 
 **Coverage bắt buộc của một pha** *(v2.3)* = các ID thuộc pha đó (bảng trên) **trừ** các ID có phạm vi "toàn bộ" trong bảng dưới. ID có phạm vi "một phần" vẫn bắt buộc, nhưng test không kiểm tra phần phụ thuộc điểm chưa duyệt. `backend/tests/conftest.py` đọc trực tiếp hai bảng này từ SPEC.md để tính coverage; không được hardcode danh sách ở nơi khác.
 
@@ -1069,13 +1121,35 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 | FET-20 | *(v2.12, C-8)* dữ liệu API cho ra entry có `alias == target` (ví dụ một redirect jawiki mang tên tiếng Anh của người đó, hoặc ja title trùng canonical name) | không có entry `alias == target` nào trong `aliases.json`; các entry khác của cùng người vẫn còn; canonical name trong `graph.json` và `people.json` không đổi; output vẫn qua các kiểm tra của §6.5 |
 
 ### 7.9 Frontend (mức tối thiểu)
+
+**Công cụ và marker** *(v2.13, Q-13, Q-16)*: Vitest + Testing Library (ADR-014). Test không gọi mạng thật; `fetch` chưa được mock làm test fail (§0.2).
+- **Gắn ID:** tên đầy đủ của test (các `describe` bao quanh nối với tiêu đề `it`/`test`) chứa một hoặc nhiều thẻ `@spec FE-NN`, ví dụ `it("@spec FE-01 round-trip tên đặc biệt", ...)`. Một test có thể mang nhiều ID; một ID có thể có nhiều test.
+- **Cơ chế kiểm tra đủ ID** là một phần bắt buộc của bộ test frontend (cách viết, tên file và vị trí trong `frontend/` không thuộc contract), và phải:
+  1. lấy danh sách FE-ID bắt buộc **trực tiếp từ SPEC.md**: mọi ID `FE-NN` trong §7, trừ ID có phạm vi "toàn bộ" trong bảng "Test ID phụ thuộc điểm chưa duyệt" (§7.0); không hardcode danh sách ở nơi khác;
+  2. báo lỗi cho thẻ `@spec` có ID không tồn tại trong §7 hoặc không có tiền tố `FE-` (tương đương `--strict-markers` và kiểm ID của `conftest.py`);
+  3. coi một ID là được phủ khi có ít nhất một test mang ID đó **chạy và pass**; test bị skip, todo hoặc fail không tính;
+  4. khi chạy **toàn bộ** bộ test: nếu còn ID bắt buộc chưa được phủ thì bộ test **thất bại** (exit code khác 0) và in danh sách ID thiếu. Khi chạy lọc theo file hoặc tên test thì chỉ áp dụng mục 2, không kiểm đủ.
+- Bản build `dist/index.html` mà FE-05 kiểm là output của lệnh build của frontend; thiếu bản build thì FE-05 **fail**, không được skip.
+
 | ID | Kiểm tra |
 |---|---|
 | FE-01 | hàm tạo share URL dùng `URLSearchParams`; round-trip với các tên đặc biệt ở §7.1 |
-| FE-02 | history hook: thêm, giới hạn số entry, đọc lại khi localStorage rỗng hoặc hỏng (JSON không parse được) mà không crash |
+| FE-02 | *(v2.13, Q-15)* history hook: thêm; giữ tối đa **20 entry**, thêm entry thứ 21 thì entry cũ nhất bị bỏ (kiểm với entry khác nhau); đọc lại khi localStorage rỗng hoặc hỏng (JSON không parse được) mà không crash |
 | FE-03 | *(v2)* xử lý lỗi theo `detail.code` (không parse message): `AMBIGUOUS_NAME` hiển thị `candidates`; chọn một ứng viên thì search lại bằng canonical name của ứng viên đó |
 | FE-04 | *(v2.1)* trang `/share`: gọi `/api/path` với đúng danh sách `p` và không tự validate; `valid=false` và có ≥ 2 phần tử `p` thì gọi `/api/search?from={p[0]}&to={p[-1]}`; `valid=false` với < 2 phần tử thì chỉ hiển thị thông báo |
-| FE-05 | *(v2.5, Q-7, Q-8)* `frontend/index.html` và bản build `dist/index.html` có đúng một `<!--OG-->` nằm trong `<head>`, và không chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` |
+| FE-05 | *(v2.5, Q-7, Q-8; làm rõ ở v2.13)* `frontend/index.html` và bản build `dist/index.html` có đúng một `<!--OG-->` nằm trong `<head>`, và không chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` |
+| FE-06 | *(v2.13, Q-19)* `PersonMeta` có `thumbnail = null` ở mọi nơi frontend hiển thị `PersonMeta` (path của kết quả search, `candidates` của `AMBIGUOUS_NAME`, path ở trang `/share`): hiển thị placeholder do frontend chọn; **không** render `<img>` (không có `src` rỗng, `"null"` hay `"None"`) và không phát request ảnh; không crash; `name` vẫn hiển thị. Khi `thumbnail` là chuỗi thì `<img>` dùng đúng chuỗi đó nguyên văn (Q-11) |
+
+### 7.10 Static mount và SPA fallback *(mới ở v2.13, Q-18)*
+Test pytest với `TestClient`, `enable_share=True`, dùng fixture `backend/tests/fixtures/dist/` (bổ sung một file tĩnh, ví dụ `assets/app.js`, khi implement; không dùng bản build thật của frontend) và fixture dữ liệu ở §7.1. Gắn ID bằng `@pytest.mark.spec("SPA-NN")`.
+
+| ID | Kiểm tra |
+|---|---|
+| SPA-01 | `GET /assets/app.js` (file có trong `DIST_DIR`): 200, body đúng nội dung file |
+| SPA-02 | `GET /`, `GET /history` và `GET /a/b/c` (không phải file tĩnh, không bắt đầu bằng `/api/`, không phải `/share`): 200, `text/html`, body **bằng từng byte** `dist/index.html` (còn nguyên `<!--OG-->`) |
+| SPA-03 | static mount và catch-all không che route đã đăng ký: `/api/people`, `/api/resolve`, `/api/search`, `/api/path` vẫn trả JSON theo contract; `GET /share` với path hợp lệ vẫn do route `/share` xử lý (HTML không còn `<!--OG-->`, khác nội dung nguyên văn của `index.html`) |
+| SPA-04 | `GET /api/khong-ton-tai`: 404, JSON, **không** phải `index.html` |
+| SPA-05 | `enable_share=False`, không có thư mục `dist/`: app khởi động được; `GET /` và `GET /history` trả 404 (không có static mount, không có catch-all) |
 
 ---
 
@@ -1091,6 +1165,10 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
   - ngôn ngữ input khác ngoài tiếng Anh và tiếng Nhật;
   - Wikidata làm nguồn alias.
 - *(v2.5, og:url)*: biến cấu hình origin công khai (`PUBLIC_BASE_URL`) cho `og:url` (Q-6).
+- *(v2.13, Phase 4)*:
+  - test e2e trong trình duyệt và test render WebGL của Sigma (ADR-014);
+  - dataset nằm ngoài image (volume, tải lúc khởi động) và fetcher trong image (§6.6);
+  - test tự động cho Dockerfile.
 - *(v2.1, fetcher)*:
   - chạy song song (concurrency > 1);
   - xác thực bằng bot password hoặc OAuth để có giới hạn cao hơn;
@@ -1101,7 +1179,7 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 
 ## 9. Open questions (chưa implement cho tới khi chốt)
 
-Hiện không còn câu hỏi mở. *(v2.5: Q-3 đã chốt.)*
+Hiện không còn câu hỏi mở. *(v2.5: Q-3 đã chốt; v2.13: Q-12..Q-19 đã chốt, Phase 4 mở.)*
 
 ### Ghi chú kỹ thuật cần review *(v2.3)*
 Không phải quyết định mở; không ảnh hưởng pha 1.
@@ -1109,7 +1187,11 @@ Không phải quyết định mở; không ảnh hưởng pha 1.
 
 - **N-2 (v2.6):** guard chặn network của `backend/tests/conftest.py` chặn mọi kết nối không phải `AF_UNIX`. Trên Windows, asyncio dùng loopback TCP cho event loop nội bộ (self-pipe qua `socketpair()`), nên `TestClient` không khởi động được và test fail ngay từ đầu; chỉ chạy được khi có shim cho phép loopback đặt ngoài repo. Nợ kỹ thuật riêng, sẽ xử lý bằng một commit riêng sau này (giữ nguyên yêu cầu §0.2: mọi kết nối ra ngoài phải làm test fail). **Không sửa `conftest.py` hay network guard trong v2.6.**
 
+- **N-3 (v2.13):** `backend/tests/conftest.py` hiện chỉ báo coverage cho `OPEN_PHASES = (1, 2, 3)`. Khi pha 4 được đưa vào, `required_ids(4)` sẽ gồm cả FE-* (đọc từ bảng §7.0) mà pytest không thể phủ, vì FE-* do cơ chế của frontend kiểm (§7.9). Lúc implement, `conftest.py` phải loại các ID có tiền tố `FE-` khỏi coverage của pytest và chỉ báo SPA-*. Không sửa `conftest.py` ở v2.13.
+- **N-4 (v2.13):** nội dung một entry lịch sử (ví dụ cặp `from`/`to` hay cả kết quả) và cách xử lý entry trùng chưa được quy định; đây là lựa chọn của implementation, **không phải contract**, và không được viết test để khóa (§0.4 nguyên tắc 4). FE-02 chỉ kiểm giới hạn 20 entry với entry khác nhau và khả năng chịu storage rỗng/hỏng. Cũng chưa quy định cách hiển thị `description = null` (FE-06 chỉ nói về `thumbnail`).
+
 ### Đã chốt
+- **Q-12..Q-19 (v2.13):** stack frontend (React + Vite + TypeScript; Vitest + Testing Library; Sigma.js + Graphology), history 20 entry, marker `@spec FE-NN` và cơ chế coverage FE-*, Docker `DATA_DIR=/app/data` với dataset copy vào image, static mount + SPA fallback (SPA-01..05), `thumbnail = null` (FE-06). Xem ADR-014, §3.4, §6.6, §7.9, §7.10.
 - **Q-9 (v2.6):** `n` trong `og:title` = số cạnh của path = `len(path) - 1` = `SearchResponse.length` (§5.4).
 - **Q-10 (v2.6):** `DIST_DIR` là cấu hình runtime chính thức, mặc định `./dist`, chỉ đọc khi `enable_share=True` (§0.3, §5.5).
 - **Q-3 (v2.5):** ngôn ngữ của `og:title` / UI ở phiên bản hiện tại là tiếng Việt; format giữ trong một hằng số duy nhất (§5.4).

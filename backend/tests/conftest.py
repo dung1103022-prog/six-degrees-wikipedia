@@ -83,9 +83,15 @@ def _expand(token: str, all_ids: set[str]) -> set[str]:
     return {f"{prefix}-{n:02d}" for n in range(int(lo), int(hi) + 1)} & all_ids
 
 
+#: FE-* tests are Vitest tests; their coverage is checked by the frontend itself (SPEC §7.9, Q-16),
+#: so pytest must not require them (SPEC v2.13, N-3).
+FRONTEND_PREFIX = "FE-"
+
+
 def required_ids(phase: int) -> set[str]:
     """SPEC §7.0: IDs of the phase minus IDs whose scope is "toàn bộ" in the
-    "Test ID phụ thuộc điểm chưa duyệt" table. Both tables are read from SPEC.md."""
+    "Test ID phụ thuộc điểm chưa duyệt" table, minus the FE-* IDs (checked by the frontend,
+    SPEC §7.9). Both tables are read from SPEC.md."""
     text = SPEC_PATH.read_text(encoding="utf-8")
     all_ids = spec_test_ids()
     section = _section_70(text)
@@ -100,7 +106,7 @@ def required_ids(phase: int) -> set[str]:
     )
     if not phase_ids:
         raise pytest.UsageError(f"SPEC §7.0: no test IDs found for phase {phase}")
-    return phase_ids - pending
+    return {i for i in phase_ids - pending if not i.startswith(FRONTEND_PREFIX)}
 
 
 _collected_ids: set[str] = set()
@@ -122,8 +128,9 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         raise pytest.UsageError("\n".join(errors))
 
 
-#: Phases whose implementation is open (SPEC §0.3). Phase 2 opened in v2.4 (Q-2), Phase 3 in v2.9.
-OPEN_PHASES = (1, 2, 3)
+#: Phases whose implementation is open (SPEC §0.3). Phase 2 opened in v2.4 (Q-2), Phase 3 in v2.9,
+#: Phase 4 in v2.13 (for pytest that is SPA-*; FE-* are excluded, see required_ids).
+OPEN_PHASES = (1, 2, 3, 4)
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
