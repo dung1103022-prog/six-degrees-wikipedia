@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.7 (duyệt C-6 và C-9; sửa mâu thuẫn FET-07/FET-14 với §6.5; Phase 3 vẫn chưa mở)
+**Version:** 2.11 (C-10: 0,32 giây vừa là mặc định vừa là ngưỡng tối thiểu cho phép của fetcher; mọi cấu hình < 0,32 giây bị từ chối; Phase 4 vẫn chưa mở)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,47 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.11 — C-10: 0,32 giây là ngưỡng tối thiểu cho phép
+
+Quyết định nguồn: chủ project, 2026-09-19. Wikimedia giới hạn client không xác thực có User-Agent hợp lệ ở 200 request/phút; 0,32 giây tương đương tối đa 187,5 request/phút và tạo margin an toàn. Chưa gọi MediaWiki thật, chưa có dữ liệu thật, chưa mở Phase 4.
+
+- **C-10 (chốt ngưỡng):** khoảng cách tối thiểu giữa hai lần bắt đầu request có **mặc định 0,32 giây** và **ngưỡng tối thiểu cho phép cũng là 0,32 giây**: mọi cấu hình **nhỏ hơn 0,32 giây bị từ chối** khi khởi động fetcher; đúng 0,32 giây và các giá trị lớn hơn được chấp nhận. Thay ngưỡng cũ "không được đặt ≤ 0,2 giây" (đã ghi ở v2.10 là để nguyên, nay được thay thế). Concurrency vẫn cố định 1.
+- **FET-17 (sửa):** cấu hình khoảng cách < 0,32 giây bị từ chối (gồm 0,31, 0,3, 0,25, 0,2, 0 và số âm); 0,32 giây được chấp nhận.
+- §0.4 (hàng C-10) và §6.4 (bullet "Dưới giới hạn của Wikimedia") cập nhật. Không đổi: timeout 30 giây, tối đa 5 retry, công thức chờ `max(Retry-After, 5 × 2^(n-1) giây)`, `maxlag=5`, cách xử lý `Retry-After`, FET-15, FET-16.
+- Lịch sử (changelog v2.1, v2.10) giữ nguyên nội dung cũ.
+
+### v2.10 — C-10: khoảng cách tối thiểu giữa hai lần bắt đầu request 0,32 giây
+
+Quyết định nguồn: chủ project, 2026-09-19, sau kết quả đối chiếu chính sách Wikimedia ở v2.9. Wikimedia hiện giới hạn client không xác thực có User-Agent hợp lệ ở **200 request/phút** (trang Wikimedia APIs/Rate limits, áp dụng từ 2026, có thể thay đổi). Khoảng cách 0,25 giây cho phép tới 240 request/phút nên không còn phù hợp; 0,32 giây cho tối đa 187,5 request/phút, tạo margin dưới giới hạn. Chưa gọi MediaWiki thật và chưa có dữ liệu thật ở bước này.
+
+- **C-10 (sửa):** khoảng cách tối thiểu giữa hai lần bắt đầu request là **0,32 giây** (trước đây 0,25 giây). Không đổi: concurrency = 1 (Q-4, C-11), timeout 30 giây, tối đa 5 retry, công thức chờ `max(Retry-After, 5 × 2^(n-1) giây)`, `maxlag=5`, cách xử lý `Retry-After`.
+- §0.4 (hàng C-10), §6.4 (ghi chú v2.2, bullet "Tốc độ và concurrency", nguồn tham chiếu) và FET-16 cập nhật số 0,25 → 0,32. FET-15 không nhắc khoảng cách này (nó kiểm công thức chờ retry) nên không đổi.
+- **Không đổi:** ngưỡng từ chối cấu hình "không được đặt ≤ 0,2 giây" (FET-17). Lưu ý cho chủ project: ngưỡng này vẫn thấp hơn 0,3 giây, tức một cấu hình thủ công trong khoảng (0,2; 0,3) sẽ vượt 200 request/phút; chưa được yêu cầu thay đổi nên giữ nguyên.
+- Lịch sử (changelog v2.1, v2.9) giữ nguyên nội dung cũ.
+
+### v2.9 — Mở Phase 3 (fetcher)
+
+Quyết định nguồn: chủ project, 2026-09-19. Chỉ đổi trạng thái pha; **không thay đổi contract** của Phase 1/2 hay của §6.4; không mở Phase 4.
+
+- **§0.3:** hàng pha 3 chuyển từ "Chưa mở; chờ chủ project mở pha" sang "**Được phép bắt đầu** *(v2.9)*". Test bắt buộc của pha 3 là toàn bộ `FET-*` (FET-01..FET-19); không có ID nào phụ thuộc điểm chưa duyệt (C-6, C-9 đã duyệt; FET-07/FET-14 chỉ kiểm phần đã duyệt).
+- Quy tắc §0.2 áp dụng: test viết trước hoặc cùng commit với code; fixture là response MediaWiki ghi sẵn, mock HTTP client, không gọi mạng; không gọi MediaWiki API trước khi có test/mock phù hợp.
+- Việc đối chiếu chính sách Wikimedia hiện hành (§0.3, bullet cuối) do người implement thực hiện khi bắt đầu pha 3; kết quả đối chiếu (nếu khác §6.4) phải được đưa lên chủ project quyết định, không tự đổi SPEC.
+- **Kết quả đối chiếu ngày 2026-09-19** (chỉ đọc trang tài liệu, không gọi Action API; nội dung lấy qua công cụ tóm tắt trang, chưa kiểm bằng bản gốc): Robot policy (sửa lần cuối 2026-03-16), API:Etiquette, Manual:Maxlag_parameter, User-Agent Policy **khớp** §6.4 (concurrency 1 và dưới 5 request/giây; gửi tuần tự; gộp tiêu đề bằng `|`; gzip; định dạng User-Agent với thông tin liên hệ; `maxlag=5`, lỗi maxlag trả HTTP 200 với `error.code == "maxlag"`, chờ ít nhất 5 giây; tôn trọng `Retry-After` khi 429). **Một điểm khác cần chủ project quyết định:** trang Wikimedia APIs/Rate limits (áp dụng từ 2026, "subject to experimentation and change") ghi bot không xác thực có User-Agent hợp lệ bị giới hạn **200 request/phút** (khoảng 3,3 request/giây), trong khi khoảng cách tối thiểu 0,25 giây của C-10 cho phép tới 240 request/phút. Chưa đổi gì trong SPEC hay code; fetcher xử lý 429 theo `Retry-After` nên không hỏng, nhưng có thể bị 429 thường xuyên nếu server trả lời nhanh hơn 0,25 giây/request.
+
+### v2.8 — Làm rõ C-9: transactional output của fetcher; thêm FET-19
+
+Quyết định nguồn: chủ project, 2026-09-19 (trước khi mở Phase 3). Chỉ làm rõ C-9 (đã duyệt ở v2.7) và thêm một test; mọi điểm khác giữ nguyên. **Không mở Phase 3**: chưa có `fetcher.py`, `data/` hay test FET. Không có thay đổi code hay test trong v2.8.
+
+- **C-9 (làm rõ) — output transactional ở mức dataset (ba file):**
+  1. Fetch và validate toàn bộ `graph.json`, `people.json`, `aliases.json` trước khi commit output.
+  2. Output được ghi vào staging/tạm trước; không ghi trực tiếp lên các file `data/` hiện tại.
+  3. Chỉ sau khi cả ba file đã được ghi thành công và validate thành công mới thay thế dataset hiện tại.
+  4. Nếu một bước ghi hoặc thay thế thất bại trong khi fetcher đang chạy bình thường: rollback hoặc giữ nguyên dataset cũ; fetcher không chủ động để lại trạng thái partial hoặc lẫn mới/cũ.
+  5. **Ngoài guarantee:** crash hoặc mất điện đúng giữa các thao tác thay thế nhiều file không thuộc guarantee của C-9. Không xây generation/manifest system hay database chỉ để giải quyết crash consistency.
+  - Vị trí staging, module validator và cơ chế thay thế cụ thể **không** thuộc contract. §0.4 và §6.4 (mục "Dữ liệu") cập nhật; §8 thêm mục out of scope tương ứng.
+- **FET-19 (mới):** lỗi ghi/thay thế được inject ở file thứ hai (không cần mạng) → dataset cũ nguyên vẹn, không có output partial nào được coi là dataset mới. §7.8 cập nhật; §7.0 không đổi vì nhóm `FET-*` đã gồm mọi ID pha 3.
+- Không thay đổi `/api/*`, `/share`, Q-1..Q-10, các C-* khác, FET-01..FET-18, `validate_path`.
 
 ### v2.7 — Duyệt C-6, C-9; sửa FET-07/FET-14; Phase 3 vẫn chưa mở
 
@@ -167,7 +208,7 @@ Bản đầu tiên.
 |---|---|---|---|
 | 1 | data loader + startup validation (không gồm placeholder), BFS, resolver, `validate_path`, schema, `/api/people`, `/api/search`, `/api/resolve`, `/api/path` | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | **Được phép bắt đầu** |
 | 2 | `/share` (bật tường minh, §0.3 "Chế độ chạy"), kiểm tra `dist/index.html` và placeholder `<!--OG-->` lúc khởi động | SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | **Được phép bắt đầu** *(v2.4)* |
-| 3 | fetcher | FET-* | Chưa mở; chờ chủ project mở pha |
+| 3 | fetcher (`backend/fetcher.py`) | FET-* | **Được phép bắt đầu** *(v2.9)* |
 | 4 | frontend | FE-* | Chưa mở; chờ chủ project mở pha; Q-3 đã chốt (tiếng Việt, v2.5) |
 
 - Không viết code của pha chưa mở, kể cả code "chuẩn bị sẵn".
@@ -200,8 +241,8 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | C-6 | Langlink trỏ tới redirect trên jawiki: `ja_title` là bài đích, tiêu đề gốc thành `ja_redirect` | §6.4 bước 5 | Đã duyệt (v2.7) |
 | C-7 | Không canonical name hay alias nào chứa `_` (G-6, A-6) | §6.1, §6.3 | Chưa duyệt |
 | C-8 | `alias == target` là lỗi dữ liệu (A-5); mảng alias phải sắp xếp (A-7) | §6.3 | Chưa duyệt |
-| C-9 | Fetcher validate output theo §6.5 trước khi ghi đè; validator fail → không ghi file output nào, dữ liệu cũ giữ nguyên; không để dataset partial hoặc lẫn mới/cũ. Module validator và cách hiện thực không thuộc contract | §6.4 | Đã duyệt (v2.7) |
-| C-10 | Policy nội bộ của fetcher: 0,25 s giữa hai request, timeout 30 s, tối đa 5 retry, chờ `max(Retry-After, 5 × 2^(n-1) s)` | §6.4 | Đã duyệt (v2.2) |
+| C-9 | Output fetcher transactional ở mức ba file: fetch và validate (§6.5) cả ba trước khi commit; ghi vào staging/tạm trước; chỉ thay dataset hiện tại sau khi cả ba đã ghi và validate thành công; validator fail hoặc lỗi ghi/thay thế khi chạy bình thường → rollback/giữ dataset cũ, không để partial hoặc lẫn mới/cũ. Crash/mất điện giữa các thao tác thay thế không thuộc guarantee. Vị trí staging, module validator và cơ chế không thuộc contract | §6.4, §7.8, §8 | Đã duyệt (v2.7; làm rõ v2.8) |
+| C-10 | Policy nội bộ của fetcher: 0,32 s giữa hai lần bắt đầu request (tối đa 187,5 request/phút) là cả mặc định lẫn ngưỡng tối thiểu cho phép (cấu hình < 0,32 s bị từ chối, đúng 0,32 s được phép), concurrency 1, timeout 30 s, tối đa 5 retry, chờ `max(Retry-After, 5 × 2^(n-1) s)` | §6.4 | Đã duyệt (v2.2; khoảng cách sửa ở v2.10, ngưỡng ở v2.11) |
 | C-11 | Fetcher dùng `httpx.Client` đồng bộ; không `asyncio`/`Semaphore`/worker pool | §6.4 | Đã duyệt (v2.2) |
 | C-12 | `/api/path` không bao giờ trả 422; mọi path không hợp lệ → `{"valid": false, "path": []}` | §3.7 | Đã duyệt (v2.2) |
 | C-13 | Fetcher từ chối chạy nếu thiếu `WIKI_UA_CONTACT`; không hardcode contact | §6.4 | Đã duyệt (v2.2) |
@@ -757,10 +798,10 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 
 *Tốc độ và concurrency*
 
-> **Ghi chú (v2.2):** các con số 0,25 giây, 30 giây, 5 lần retry và công thức backoff dưới đây là **policy nội bộ của fetcher** (C-10), không phải giá trị Wikimedia bắt buộc. Giới hạn 0,25 giây (tối đa 4 request/giây) là lựa chọn conservative để nằm dưới giới hạn hiện hành cho client Action API không xác thực (dưới 5 request/giây, concurrency 1). Nếu Wikimedia thay đổi giới hạn, cập nhật §6.4 và changelog trước khi đổi code.
+> **Ghi chú (v2.2, sửa ở v2.10):** các con số 0,32 giây, 30 giây, 5 lần retry và công thức backoff dưới đây là **policy nội bộ của fetcher** (C-10), không phải giá trị Wikimedia bắt buộc. Khoảng cách 0,32 giây (tối đa 187,5 request/phút, khoảng 3,1 request/giây) là lựa chọn conservative để nằm dưới các giới hạn hiện hành cho client không xác thực có User-Agent hợp lệ: concurrency 1 và dưới 5 request/giây (Robot policy), và 200 request/phút (Wikimedia APIs/Rate limits, áp dụng từ 2026, có thể thay đổi). Nếu Wikimedia thay đổi giới hạn, cập nhật §6.4 và changelog trước khi đổi code.
 
 - **Tuần tự tuyệt đối:** tại mọi thời điểm có tối đa một request đang chờ phản hồi. Không có tùy chọn chạy song song. Dùng `httpx.Client` đồng bộ trong một vòng lặp; không dùng `asyncio`/`Semaphore` (C-11).
-- **Dưới 5 request/giây:** khoảng cách tối thiểu giữa hai lần bắt đầu request là 0,25 giây (C-10), cấu hình được nhưng không được đặt ≤ 0,2 giây.
+- **Dưới giới hạn của Wikimedia:** khoảng cách tối thiểu giữa hai lần bắt đầu request là **0,32 giây** (C-10, sửa ở v2.10; tối đa 187,5 request/phút, dưới giới hạn 200 request/phút và dưới 5 request/giây). Đây cũng là ngưỡng tối thiểu cho phép *(v2.11)*: cấu hình được nhưng mọi giá trị **nhỏ hơn 0,32 giây bị từ chối**; đúng 0,32 giây được phép.
 - Timeout 30 giây cho mỗi request (C-10).
 
 *Lỗi và retry*
@@ -775,13 +816,19 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 - Tiêu đề lấy từ API được dùng nguyên dạng (dấu cách); fetcher không tự chuyển đổi `_`/dấu cách. Nếu có chỗ nào phải chuyển (ví dụ đọc từ URL), việc đó chỉ nằm trong fetcher.
 - NFC-normalize mọi tiêu đề trước khi ghi.
 - Ghi file theo đúng §6.1, §6.2, §6.3.
-- *(C-9, đã duyệt ở v2.7)* Trước khi ghi đè, output (cả ba file) phải thỏa các kiểm tra của §6.5. Nếu validator fail → **không ghi file output nào** và dữ liệu cũ giữ nguyên. `data/` không bao giờ ở trạng thái partial hoặc lẫn giữa dữ liệu mới và cũ. Việc fetcher dùng module validator nào và cách hiện thực không thuộc contract; SPEC chỉ yêu cầu output phải pass §6.5 trước khi ghi.
+- *(C-9, đã duyệt ở v2.7; làm rõ ở v2.8)* **Output là transactional ở mức dataset (ba file `graph.json`, `people.json`, `aliases.json`):**
+  1. Fetch và validate toàn bộ ba file (các kiểm tra của §6.5) trước khi commit output.
+  2. Ghi output vào staging/tạm trước; không ghi trực tiếp lên các file `data/` hiện tại.
+  3. Chỉ sau khi cả ba file đã được ghi thành công và validate thành công mới thay thế dataset hiện tại.
+  4. Validator fail → không ghi file output nào, dữ liệu cũ giữ nguyên. Nếu một bước ghi hoặc thay thế thất bại trong khi fetcher đang chạy bình thường → rollback hoặc giữ nguyên dataset cũ; fetcher không chủ động để `data/` ở trạng thái partial hoặc lẫn giữa dữ liệu mới và cũ.
+  5. **Ngoài guarantee:** crash hoặc mất điện đúng giữa các thao tác thay thế nhiều file không thuộc guarantee của C-9. Không xây generation/manifest system hay database chỉ để giải quyết crash consistency.
+  - Vị trí staging, việc fetcher dùng module validator nào và cơ chế thay thế cụ thể không thuộc contract; SPEC chỉ yêu cầu các điểm trên.
 
 *Thời gian chạy:* với dataset khoảng 10k người và tốc độ trên, một lần fetch có thể mất từ vài chục phút tới vài giờ tùy số request continuation. Điều này được chấp nhận vì fetcher chạy tay, không nằm trên đường request của production.
 
 *Nguồn tham chiếu (kiểm tra ngày 2026-09-18; implement phải đối chiếu lại):*
 - Wikitech — Robot policy: Action API, client không xác thực: concurrency 1, dưới 5 request/giây.
-- mediawiki.org — Wikimedia APIs/Rate limits: giới hạn toàn cục áp dụng từ 2026; tôn trọng `Retry-After` khi nhận 429; User-Agent có thông tin liên hệ.
+- mediawiki.org — Wikimedia APIs/Rate limits: giới hạn toàn cục áp dụng từ 2026; tôn trọng `Retry-After` khi nhận 429; User-Agent có thông tin liên hệ. *(kiểm tra ngày 2026-09-19, v2.10)* client không xác thực có User-Agent hợp lệ: 200 request/phút.
 - mediawiki.org — API:Etiquette: gửi request tuần tự; gộp nhiều tiêu đề; dùng gzip.
 - mediawiki.org — Manual:Maxlag parameter: `maxlag=5`; lỗi maxlag trả HTTP 200; header `Retry-After`; chờ ít nhất 5 giây.
 - Wikimedia Foundation — User-Agent Policy: định dạng User-Agent và yêu cầu thông tin liên hệ của người vận hành.
@@ -1000,9 +1047,10 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 | FET-13 | *(v2)* hai target cùng `ja_title`: xung đột được giữ nguyên, `ja_redirect` sinh cho cả hai target |
 | FET-14 | *(sửa ở v2.1, v2.7)* mọi request là `GET`, có `maxlag=5`, `format=json`, `formatversion=2`, header `User-Agent` đúng định dạng và chứa giá trị `WIKI_UA_CONTACT`, header `Accept-Encoding` có `gzip`, timeout 30 giây; output thỏa mãn A-1..A-4 (không test A-5..A-7 cho tới khi C-7/C-8 được duyệt). *(C-9, v2.7)* validator fail → không ghi file output nào, ba file cũ nguyên vẹn |
 | FET-15 | *(v2.1)* thời gian chờ retry = `max(Retry-After, 5 × 2^(n-1))`: `Retry-After` lớn hơn backoff thì dùng `Retry-After`; không có header thì dùng backoff (dùng đồng hồ giả, không sleep thật) |
-| FET-16 | *(v2.1)* không bao giờ có hai request chờ phản hồi cùng lúc; khoảng cách giữa hai lần bắt đầu request ≥ 0,25 giây (đồng hồ giả) |
-| FET-17 | *(v2.1)* cấu hình khoảng cách ≤ 0,2 giây bị từ chối khi khởi động fetcher |
+| FET-16 | *(v2.1; sửa ở v2.10)* không bao giờ có hai request chờ phản hồi cùng lúc; khoảng cách giữa hai lần bắt đầu request ≥ 0,32 giây, tức không quá 187,5 request/phút (đồng hồ giả); giá trị mặc định của cấu hình là 0,32 giây |
+| FET-17 | *(v2.1; sửa ở v2.11)* cấu hình khoảng cách < 0,32 giây bị từ chối khi khởi động fetcher (gồm 0,31, 0,3, 0,25, 0,2, 0 và số âm), trước khi gửi request nào; đúng 0,32 giây được chấp nhận |
 | FET-18 | *(v2.1)* thiếu `WIKI_UA_CONTACT` → fetcher dừng trước khi gửi request đầu tiên |
+| FET-19 | *(v2.8, C-9)* lỗi ghi/thay thế được inject ở file output thứ hai (thứ tự ghi do implementation chọn; không cần mạng) | fetcher dừng với lỗi; sau đó ba file `data/` hiện tại có nội dung y như trước (dataset cũ nguyên vẹn); không có output partial nào được coi là dataset mới, tức không có file mới nào nằm ở vị trí production. Một ID có thể có nhiều test (§0.2), nên có thể thêm ca lỗi ở bước thay thế |
 
 ### 7.9 Frontend (mức tối thiểu)
 | ID | Kiểm tra |
@@ -1030,7 +1078,8 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 - *(v2.1, fetcher)*:
   - chạy song song (concurrency > 1);
   - xác thực bằng bot password hoặc OAuth để có giới hạn cao hơn;
-  - khả năng tiếp tục một lần fetch bị dừng giữa chừng (resume/checkpoint); lần chạy lỗi thì chạy lại từ đầu.
+  - khả năng tiếp tục một lần fetch bị dừng giữa chừng (resume/checkpoint); lần chạy lỗi thì chạy lại từ đầu;
+  - *(v2.8, C-9)* generation/manifest system hoặc database chỉ để bảo đảm crash consistency khi thay thế nhiều file; crash/mất điện giữa các thao tác thay thế không thuộc guarantee.
 
 ---
 
