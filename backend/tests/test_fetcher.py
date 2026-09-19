@@ -1,7 +1,8 @@
-"""SPEC §6.4, §7.8 — the Phase 3 fetcher (FET-01..FET-19). No network: every request goes
+"""SPEC §6.4, §7.8 — the Phase 3 fetcher (FET-01..FET-21). No network: every request goes
 to ``FakeWiki`` through ``httpx.MockTransport``; time is a fake clock (nothing really sleeps).
 
-Written before ``backend/fetcher.py`` (SPEC §0.2).
+Written before ``backend/fetcher.py`` (SPEC §0.2). FET-21 and the transport-error cases of
+FET-06/FET-15 (C-15, SPEC v2.14) were written before the fetcher retried transport errors.
 """
 from __future__ import annotations
 
@@ -10,6 +11,8 @@ import logging
 import re
 import shutil
 import unicodedata
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -54,6 +57,58 @@ EXPECTED_ALIASES = {
 # ------------------------------------------------------------------------------ helpers
 
 
+@dataclass
+class Attempt:
+    """One attempt that reached the transport (a retry is a new attempt)."""
+
+    n: int  # 1-based, over the whole run
+    lang: str
+    params: dict[str, str]
+    failures: int  # how many attempts before this one were failed by the Flaky wrapper
+    started: float  # fake clock, when the attempt started
+
+
+def _remote_protocol_error(request: httpx.Request) -> Exception:
+    return httpx.RemoteProtocolError("Server disconnected without sending a response.", request=request)
+
+
+class Flaky:
+    """Transport wrapper around ``FakeWiki`` (C-15): an attempt for which ``fail_when(attempt)`` is
+    true raises ``error(request)`` and never reaches the fake; every other attempt is served by it
+    (so ``FakeWiki.scripted`` answers and ``FakeWiki.requests`` only see the attempts that got through)."""
+
+    def __init__(self, fail_when: Callable[[Attempt], bool], error: Callable[[httpx.Request], Exception] = _remote_protocol_error):
+        self.fail_when = fail_when
+        self.error = error
+        self.attempts: list[Attempt] = []
+        self.failed_at: list[int] = []  # indexes into ``attempts`` of the attempts it failed
+        self._inner: httpx.MockTransport | None = None
+        self._clock: FakeClock | None = None
+
+    def bind(self, wiki: FakeWiki) -> httpx.MockTransport:
+        self._inner, self._clock = wiki.transport(), wiki.clock
+        return httpx.MockTransport(self._handle)
+
+    @property
+    def failures(self) -> int:
+        return len(self.failed_at)
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        assert self._inner is not None and self._clock is not None
+        attempt = Attempt(
+            n=len(self.attempts) + 1,
+            lang=request.url.host.split(".")[0],
+            params=dict(request.url.params.items()),
+            failures=self.failures,
+            started=self._clock.monotonic(),
+        )
+        self.attempts.append(attempt)
+        if self.fail_when(attempt):
+            self.failed_at.append(len(self.attempts) - 1)
+            raise self.error(request)
+        return self._inner.handle_request(request)
+
+
 def make_env(
     tmp_path: Path,
     *,
@@ -63,6 +118,7 @@ def make_env(
     page_size: int = 0,
     multi_continue: bool = False,
     min_interval: float | None = None,  # None: the fetcher's own default (C-10)
+    flaky: Flaky | None = None,  # fail chosen attempts at the transport (C-15)
 ) -> SimpleNamespace:
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True)
@@ -76,11 +132,13 @@ def make_env(
         multi_continue=multi_continue,
     )
     config = fetcher.FetcherConfig() if min_interval is None else fetcher.FetcherConfig(min_interval=min_interval)
-    client = fetcher.build_client(CONTACT, transport=wiki.transport())
+    transport = wiki.transport() if flaky is None else flaky.bind(wiki)
+    client = fetcher.build_client(CONTACT, transport=transport)
     env = SimpleNamespace(
         data_dir=data_dir,
         clock=clock,
         wiki=wiki,
+        flaky=flaky,
         fetcher=fetcher.Fetcher(data_dir, client, config, clock),
     )
     env.run = env.fetcher.run
@@ -783,3 +841,140 @@ def test_a_completed_run_replaces_the_whole_dataset(tmp_path):
     new = snapshot(env.data_dir)
     assert set(new) == set(FILES) and all(new[n] != old[n] for n in FILES)
     assert listing(env.data_dir) == sorted([*FILES, "seed_names.txt"])
+
+
+# -------------------------------------------- C-15: transport errors are retried (v2.14)
+
+#: The transport errors that are retried (SPEC §6.4, C-15): RemoteProtocolError, ReadError, WriteError,
+#: ConnectError and every TimeoutException (the 30 s timeout included).
+RETRIED_ERRORS = [
+    httpx.RemoteProtocolError,
+    httpx.ReadError,
+    httpx.WriteError,
+    httpx.ConnectError,
+    httpx.TimeoutException,
+    httpx.ReadTimeout,
+    httpx.ConnectTimeout,
+    httpx.WriteTimeout,
+    httpx.PoolTimeout,
+]
+
+#: HTTPErrors NOT in that list: one attempt, then the fetcher stops. CloseError and ProxyError are
+#: transport errors too, so this also proves the list is explicit and not "every TransportError".
+NOT_RETRIED_ERRORS = [
+    httpx.LocalProtocolError,
+    httpx.UnsupportedProtocol,
+    httpx.DecodingError,
+    httpx.TooManyRedirects,
+    httpx.CloseError,
+    httpx.ProxyError,
+]
+
+
+def raising(cls) -> Callable[[httpx.Request], Exception]:
+    return lambda request: cls(f"simulated {cls.__name__}", request=request)
+
+
+def gaps_between(attempts: list[Attempt]) -> list[float]:
+    return [b.started - a.started for a, b in zip(attempts, attempts[1:])]
+
+
+@pytest.mark.spec("FET-21")
+@pytest.mark.spec("FET-16")
+@pytest.mark.parametrize(
+    "token",
+    ["plcontinue", "llcontinue"],
+    ids=["links-continuation", "three-key-continue-object"],
+)
+def test_transport_error_on_a_continuation_page_is_retried_and_pagination_continues(tmp_path, token):
+    options = {"page_size": 1, "multi_continue": True}
+    baseline = make_env(tmp_path / "baseline", **options)
+    baseline.run()
+    expected_files = snapshot(baseline.data_dir)
+    expected_requests = [(r.lang, r.params) for r in baseline.wiki.requests]
+    assert any(token in params for _, params in expected_requests)  # the scenario has that continuation
+
+    flaky = Flaky(lambda a: a.failures == 0 and token in a.params)  # the first request carrying it
+    env = make_env(tmp_path / "flaky", flaky=flaky, **options)
+    env.run()  # the fetcher recovers and finishes
+
+    assert flaky.failures == 1
+    (index,) = flaky.failed_at
+    failed, retried = flaky.attempts[index], flaky.attempts[index + 1]
+    assert (retried.lang, retried.params) == (failed.lang, failed.params)  # the very same request ...
+    assert token in retried.params and "continue" in retried.params  # ... including its continue object
+    assert retried.started - failed.started == 5.0  # no response, so no Retry-After: the plain backoff
+    # the wiki saw exactly the requests of the undisturbed run: no page skipped, none repeated
+    assert [(r.lang, r.params) for r in env.wiki.requests] == expected_requests
+    assert env.wiki.violations == []  # continue objects echoed back in full
+    assert snapshot(env.data_dir) == expected_files  # byte for byte the same dataset
+    assert all(gap >= 0.32 - 1e-9 for gap in gaps_between(flaky.attempts))  # C-10 spacing holds for retries
+
+
+@pytest.mark.spec("FET-21")
+@pytest.mark.spec("FET-15")
+def test_persistent_transport_error_gives_up_after_six_attempts_and_keeps_the_old_dataset(tmp_path):
+    flaky = Flaky(lambda a: "plcontinue" in a.params)  # every attempt at the first continuation page
+    env = make_env(tmp_path, page_size=1, flaky=flaky)
+    install_old_dataset(env.data_dir)
+    before, names = snapshot(env.data_dir), listing(env.data_dir)
+
+    with pytest.raises(fetcher.FetchError):
+        env.run()
+
+    failing = [a for a in flaky.attempts if "plcontinue" in a.params]
+    assert len(failing) == 6  # the request plus five retries
+    assert all(a.params == failing[0].params for a in failing)  # always the same request
+    assert gaps_between(failing) == [5.0, 10.0, 20.0, 40.0, 80.0]
+    assert snapshot(env.data_dir) == before  # old dataset intact
+    assert listing(env.data_dir) == names  # no partial output, no staging left behind (C-9)
+
+
+@pytest.mark.spec("FET-06")
+@pytest.mark.parametrize("error", RETRIED_ERRORS, ids=lambda cls: cls.__name__)
+def test_each_retried_transport_error_is_retried_with_the_same_request(tmp_path, error):
+    flaky = Flaky(lambda a: a.failures == 0, error=raising(error))  # only the very first attempt fails
+    env = make_env(tmp_path, flaky=flaky)
+    env.run()
+
+    assert flaky.failures == 1 and flaky.failed_at == [0]
+    first, second = flaky.attempts[0], flaky.attempts[1]
+    assert (second.lang, second.params) == (first.lang, first.params)
+    assert second.started - first.started == 5.0
+    assert read_out(env.data_dir)[0] == EXPECTED_GRAPH
+
+
+@pytest.mark.spec("FET-06")
+@pytest.mark.parametrize("error", NOT_RETRIED_ERRORS, ids=lambda cls: cls.__name__)
+def test_other_http_errors_are_not_retried_and_write_nothing(tmp_path, error):
+    flaky = Flaky(lambda a: True, error=raising(error))
+    env = make_env(tmp_path, flaky=flaky)
+    install_old_dataset(env.data_dir)
+    before, names = snapshot(env.data_dir), listing(env.data_dir)
+
+    with pytest.raises(fetcher.FetchError):
+        env.run()
+
+    assert len(flaky.attempts) == 1  # one attempt, then stop
+    assert env.clock.sleeps == []  # and no backoff wait
+    assert snapshot(env.data_dir) == before and listing(env.data_dir) == names
+
+
+@pytest.mark.spec("FET-15")
+def test_the_retry_cap_is_shared_by_every_cause_of_retry(tmp_path):
+    # 503, 503, then three disconnects: five retries in all, so the sixth attempt is still allowed.
+    flaky = Flaky(lambda a: a.n in {3, 4, 5})
+    env = make_env(tmp_path / "five", flaky=flaky)
+    env.wiki.scripted = [respond(503), respond(503)]
+    env.run()
+    assert gaps_between(flaky.attempts[:6]) == [5.0, 10.0, 20.0, 40.0, 80.0]
+    assert read_out(env.data_dir)[0] == EXPECTED_GRAPH
+
+    # 503 x3, then three disconnects: the sixth retry does not exist, the fetcher stops after 6 attempts.
+    flaky = Flaky(lambda a: a.n in {4, 5, 6})
+    env = make_env(tmp_path / "six", flaky=flaky)
+    env.wiki.scripted = [respond(503)] * 3
+    with pytest.raises(fetcher.FetchError):
+        env.run()
+    assert len(flaky.attempts) == 6
+    assert listing(env.data_dir) == ["seed_names.txt"]

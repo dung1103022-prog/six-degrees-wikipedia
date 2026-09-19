@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.13 (mở Phase 4; chốt Q-12..Q-19: stack frontend, công cụ test, cơ chế coverage FE-*, history 20 entry, Docker `DATA_DIR=/app/data`, static mount + SPA fallback, `thumbnail=None`)
+**Version:** 2.14 (duyệt C-15: fetcher retry lỗi transport `RemoteProtocolError`/`ReadError`/`WriteError`/`ConnectError`/`TimeoutException`, chung cap 5 retry; Phase 4 đã mở ở v2.13)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,17 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.14 — Duyệt C-15: lỗi transport được retry
+
+Quyết định nguồn: chủ project, 2026-09-19. Trước v2.14, §6.4 chỉ retry maxlag-trong-HTTP-200, 429 và 5xx; mọi lỗi ở tầng kết nối (ví dụ `httpx.RemoteProtocolError` khi server ngắt kết nối mà không trả response) làm fetcher dừng ngay, dù mọi request đều là `GET` nên gửi lại an toàn. Chỉ thay đổi hành vi retry của fetcher (Phase 3); không thay đổi contract của Phase 1, 2 và 4.
+
+- **C-15 (duyệt): lỗi transport được retry.** Được retry (theo tên exception của `httpx`): `RemoteProtocolError`, `ReadError`, `WriteError`, `ConnectError` và `TimeoutException` (mọi loại timeout, gồm timeout 30 giây của C-10). **Không** retry: `LocalProtocolError`, `UnsupportedProtocol`, `DecodingError`, `TooManyRedirects` và mọi `HTTPError` khác không nằm trong danh sách trên; các lỗi này dừng ngay với lỗi, không ghi file.
+- **Không có response thì không có `Retry-After`:** thời gian chờ trước lần retry thứ `n` chỉ là `5 × 2^(n-1)` giây (5, 10, 20, 40, 80).
+- **Chung một cap:** tối đa 5 retry cho một request, tính chung cho mọi nguyên nhân (429, 5xx, maxlag, lỗi transport), tức tối đa 6 lần thử. Hết cap → dừng với lỗi, không ghi file (C-9, không đổi).
+- **Retry gửi lại đúng request:** cùng URL, cùng tham số (gồm `maxlag=5` và, khi đang phân trang, đúng object `continue` của lần lỗi). Lần thử lỗi không đóng góp dữ liệu; fetcher tiếp tục đúng continuation sau khi retry thành công.
+- §0.4 (hàng C-15), §6.4 (mục "Lỗi và retry" và bullet timeout), §7.8 (FET-06, FET-15 sửa; thêm FET-21) cập nhật. §7.0 không đổi vì nhóm `FET-*` đã gồm mọi ID pha 3.
+- **Không thay đổi:** C-10 (0,32 giây là mặc định và ngưỡng tối thiểu, concurrency 1, timeout 30 giây, tối đa 5 retry, công thức `max(Retry-After, 5 × 2^(n-1))`; mỗi lần thử, kể cả lần thử lại, vẫn là một request bắt đầu và chịu khoảng cách 0,32 giây), `maxlag=5`, cách xử lý `Retry-After` khi có response, C-9 (output transactional), C-13, mọi contract khác.
 
 ### v2.13 — Mở Phase 4 (frontend); chốt Q-12..Q-19
 
@@ -268,6 +279,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | C-7 | Không canonical name hay alias nào chứa `_` (G-6, A-6) | §6.1, §6.3 | Chưa duyệt |
 | C-8 | `alias == target` (chính xác, sau NFC) không phải lỗi dữ liệu: fetcher bỏ entry đó, không ghi vào `aliases.json`; loader chấp nhận; không đổi canonical identity (A-5 bị bỏ) | §6.3, §6.4 | Đã duyệt (v2.12, nội dung sửa so với đề xuất ban đầu) |
 | C-14 | `aliases.json` sắp xếp ổn định theo `(alias, target, source)` (A-7): fetcher ghi mảng đã sắp xếp, không phụ thuộc thứ tự/phân trang của API; loader fail khi không sắp xếp. Tách ra từ C-8 | §6.3, §6.4, §6.5 | Đã duyệt (v2.12) |
+| C-15 | Fetcher retry lỗi transport: `httpx.RemoteProtocolError`, `ReadError`, `WriteError`, `ConnectError`, `TimeoutException` (timeout 30 s cũng retry); không retry `LocalProtocolError`, `UnsupportedProtocol`, `DecodingError`, `TooManyRedirects` và các `HTTPError` khác. Không có response nên không có `Retry-After`: chờ 5, 10, 20, 40, 80 s. Chung cap 5 retry (tối đa 6 lần thử) với 429/5xx/maxlag; retry gửi lại đúng request (URL, tham số, `continue`); hết cap vẫn không ghi file (C-9) | §6.4, §7.8 | Đã duyệt (v2.14) |
 | C-9 | Output fetcher transactional ở mức ba file: fetch và validate (§6.5) cả ba trước khi commit; ghi vào staging/tạm trước; chỉ thay dataset hiện tại sau khi cả ba đã ghi và validate thành công; validator fail hoặc lỗi ghi/thay thế khi chạy bình thường → rollback/giữ dataset cũ, không để partial hoặc lẫn mới/cũ. Crash/mất điện giữa các thao tác thay thế không thuộc guarantee. Vị trí staging, module validator và cơ chế không thuộc contract | §6.4, §7.8, §8 | Đã duyệt (v2.7; làm rõ v2.8) |
 | C-10 | Policy nội bộ của fetcher: 0,32 s giữa hai lần bắt đầu request (tối đa 187,5 request/phút) là cả mặc định lẫn ngưỡng tối thiểu cho phép (cấu hình < 0,32 s bị từ chối, đúng 0,32 s được phép), concurrency 1, timeout 30 s, tối đa 5 retry, chờ `max(Retry-After, 5 × 2^(n-1) s)` | §6.4 | Đã duyệt (v2.2; khoảng cách sửa ở v2.10, ngưỡng ở v2.11) |
 | C-11 | Fetcher dùng `httpx.Client` đồng bộ; không `asyncio`/`Semaphore`/worker pool | §6.4 | Đã duyệt (v2.2) |
@@ -293,7 +305,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-18 | Static mount `DIST_DIR` + SPA catch-all chỉ khi `enable_share=True`; `/api/*` không khớp → 404 (không phải `index.html`) | §3.4, §7.10 | Đã chốt (v2.13) |
 | Q-19 | `thumbnail = null` hiển thị placeholder ở mọi nơi hiển thị `PersonMeta` | §7.9 (FE-06) | Đã chốt (v2.13) |
 
-Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-14 đã được duyệt ở v2.12: loader kiểm A-7 (test DAT-15, phần A-7) và fetcher ghi mảng đã sắp xếp (FET-07, FET-14). C-8 đã được duyệt ở v2.12: phần loader (chấp nhận `alias == target`) đã đúng sẵn và có test ở DAT-14; phần fetcher (bỏ entry) thuộc pha 3, test FET-20. C-6, C-9 thuộc pha 3 và đã được duyệt ở v2.7, nhưng pha 3 vẫn chưa mở nên chưa implement. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
+Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-14 đã được duyệt ở v2.12: loader kiểm A-7 (test DAT-15, phần A-7) và fetcher ghi mảng đã sắp xếp (FET-07, FET-14). C-8 đã được duyệt ở v2.12: phần loader (chấp nhận `alias == target`) đã đúng sẵn và có test ở DAT-14; phần fetcher (bỏ entry) thuộc pha 3, test FET-20. C-6, C-9 thuộc pha 3 và đã được duyệt ở v2.7, nhưng pha 3 vẫn chưa mở nên chưa implement. C-15 đã được duyệt ở v2.14 và thuộc pha 3 (fetcher): test FET-06, FET-15, FET-21. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
 ---
 
@@ -854,14 +866,16 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 
 - **Tuần tự tuyệt đối:** tại mọi thời điểm có tối đa một request đang chờ phản hồi. Không có tùy chọn chạy song song. Dùng `httpx.Client` đồng bộ trong một vòng lặp; không dùng `asyncio`/`Semaphore` (C-11).
 - **Dưới giới hạn của Wikimedia:** khoảng cách tối thiểu giữa hai lần bắt đầu request là **0,32 giây** (C-10, sửa ở v2.10; tối đa 187,5 request/phút, dưới giới hạn 200 request/phút và dưới 5 request/giây). Đây cũng là ngưỡng tối thiểu cho phép *(v2.11)*: cấu hình được nhưng mọi giá trị **nhỏ hơn 0,32 giây bị từ chối**; đúng 0,32 giây được phép.
-- Timeout 30 giây cho mỗi request (C-10).
+- Timeout 30 giây cho mỗi request (C-10). *(v2.14, C-15)* Hết timeout là một lỗi transport và được retry (xem "Lỗi và retry").
 
 *Lỗi và retry*
 - **Lỗi maxlag** có thể được trả về với **HTTP 200** và body JSON có `error.code == "maxlag"`. Vì vậy **mọi** response, kể cả HTTP 200, phải được kiểm tra `error.code` trong body trước khi coi là thành công; không chỉ dựa vào status code. Lỗi maxlag được chờ theo quy tắc bên dưới rồi retry.
 - **HTTP 429** và **5xx**: chờ theo quy tắc bên dưới rồi retry.
-- **Thời gian chờ** trước lần retry thứ `n` (n bắt đầu từ 1) = `max(Retry-After nếu có, 5 × 2^(n-1) giây)`. Khi Wikimedia trả `Retry-After`, **phải** tôn trọng giá trị đó, kể cả khi giá trị lớn hơn backoff nội bộ; ghi log thời gian chờ.
-- Tối đa 5 lần retry cho một request (C-10). Hết số lần retry → fetcher dừng với lỗi, **không ghi** file output nào.
-- Các lỗi khác (4xx khác 429, body có `error` khác `maxlag`, JSON không parse được) không retry: dừng với lỗi, không ghi file.
+- **Lỗi transport** *(v2.14, C-15)*: một request không nhận được response hoàn chỉnh vì lỗi ở tầng kết nối (ví dụ server ngắt kết nối mà không trả response) được chờ theo quy tắc bên dưới rồi retry. Các loại được retry, theo tên exception của `httpx`: `RemoteProtocolError`, `ReadError`, `WriteError`, `ConnectError` và `TimeoutException` (gồm timeout 30 giây). Mọi `HTTPError` khác không nằm trong danh sách này (ví dụ `LocalProtocolError`, `UnsupportedProtocol`, `DecodingError`, `TooManyRedirects`) **không** retry: dừng với lỗi, không ghi file.
+- **Retry gửi lại đúng request** *(C-15)*: cùng URL, cùng tham số (gồm `maxlag=5` và, khi đang phân trang, đúng object `continue` của lần lỗi). Lần thử lỗi không đóng góp dữ liệu nào; sau khi retry thành công fetcher tiếp tục đúng continuation. Mỗi lần thử, kể cả lần thử lại, là một request bắt đầu và chịu khoảng cách tối thiểu 0,32 giây (C-10).
+- **Thời gian chờ** trước lần retry thứ `n` (n bắt đầu từ 1) = `max(Retry-After nếu có, 5 × 2^(n-1) giây)`. Khi Wikimedia trả `Retry-After`, **phải** tôn trọng giá trị đó, kể cả khi giá trị lớn hơn backoff nội bộ; ghi log thời gian chờ. *(C-15)* Lỗi transport không có response nên không có `Retry-After`: thời gian chờ chỉ là `5 × 2^(n-1)` giây (5, 10, 20, 40, 80).
+- Tối đa 5 lần retry cho một request (C-10), **tính chung cho mọi nguyên nhân** (429, 5xx, maxlag, lỗi transport), tức tối đa 6 lần thử *(C-15)*. Hết số lần retry → fetcher dừng với lỗi, **không ghi** file output nào (C-9).
+- Các lỗi khác (4xx khác 429, body có `error` khác `maxlag`, JSON không parse được, `HTTPError` ngoài danh sách C-15) không retry: dừng với lỗi, không ghi file.
 - Mọi lỗi và cảnh báo trong body (`warnings`) được ghi log.
 
 *Dữ liệu*
@@ -1104,7 +1118,7 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 | FET-03 | seed là redirect được resolve; seed trùng sau resolve được gộp |
 | FET-04 | seed không tồn tại bị loại và ghi log |
 | FET-05 | metadata batch: trang không có ảnh → `thumbnail: null`. *(Q-11, v2.12)* URL thumbnail trả về được ghi nguyên văn, kể cả query `utm_*` và cỡ ảnh khác `pithumbsize` |
-| FET-06 | *(sửa ở v2.1)* 429 và 5xx được retry; response HTTP 200 có `error.code == "maxlag"` được nhận ra là lỗi maxlag và retry; body có `error` khác không retry; hết 5 lần retry thì dừng và không ghi file |
+| FET-06 | *(sửa ở v2.1, v2.14)* 429 và 5xx được retry; response HTTP 200 có `error.code == "maxlag"` được nhận ra là lỗi maxlag và retry; body có `error` khác không retry; hết 5 lần retry thì dừng và không ghi file. *(C-15)* mỗi lỗi transport trong danh sách (`RemoteProtocolError`, `ReadError`, `WriteError`, `ConnectError`, `TimeoutException`) được retry và request được gửi lại đúng nguyên; `LocalProtocolError` không retry (một lần thử rồi dừng với lỗi, không ghi file) |
 | FET-07 | *(sửa ở v2.7)* output thỏa mãn G-1..G-5, P-1..P-3, A-1..A-4 và A-7 (các kiểm tra của §6.5; A-7 từ C-14, v2.12). Không test G-6 và A-6 (C-7) cho tới khi được duyệt; A-5 đã bị bỏ (C-8, v2.12). *(C-14)* Tính ổn định: hai lần chạy trên cùng dữ liệu API, kể cả khi API phân trang/continuation khác nhau, cho `aliases.json` (và hai file kia) giống hệt từng byte |
 | FET-08 | *(v2)* langlinks `ja` sinh `ja_title`; người không có langlink `ja` không sinh alias |
 | FET-09 | *(v2)* continuation khi một request có nhiều prop (`langlinks`, `redirects`) gửi lại toàn bộ tham số `continue` |
@@ -1113,12 +1127,13 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 | FET-12 | *(v2)* langlink trỏ tới trang không tồn tại trên jawiki: bị bỏ, ghi log |
 | FET-13 | *(v2)* hai target cùng `ja_title`: xung đột được giữ nguyên, `ja_redirect` sinh cho cả hai target |
 | FET-14 | *(sửa ở v2.1, v2.7)* mọi request là `GET`, có `maxlag=5`, `format=json`, `formatversion=2`, header `User-Agent` đúng định dạng và chứa giá trị `WIKI_UA_CONTACT`, header `Accept-Encoding` có `gzip`, timeout 30 giây; output thỏa mãn A-1..A-4 và A-7 (không test A-6 cho tới khi C-7 được duyệt; A-5 đã bị bỏ, C-8; A-7 từ C-14). *(C-9, v2.7)* validator fail → không ghi file output nào, ba file cũ nguyên vẹn |
-| FET-15 | *(v2.1)* thời gian chờ retry = `max(Retry-After, 5 × 2^(n-1))`: `Retry-After` lớn hơn backoff thì dùng `Retry-After`; không có header thì dùng backoff (dùng đồng hồ giả, không sleep thật) |
+| FET-15 | *(v2.1; v2.14)* thời gian chờ retry = `max(Retry-After, 5 × 2^(n-1))`: `Retry-After` lớn hơn backoff thì dùng `Retry-After`; không có header thì dùng backoff (dùng đồng hồ giả, không sleep thật). *(C-15)* lỗi transport không có response nên không có `Retry-After`: các lần chờ liên tiếp là 5, 10, 20, 40, 80 giây; cap 5 retry dùng chung cho mọi nguyên nhân (429/5xx/maxlag trộn với lỗi transport vẫn tối đa 6 lần thử) |
 | FET-16 | *(v2.1; sửa ở v2.10)* không bao giờ có hai request chờ phản hồi cùng lúc; khoảng cách giữa hai lần bắt đầu request ≥ 0,32 giây, tức không quá 187,5 request/phút (đồng hồ giả); giá trị mặc định của cấu hình là 0,32 giây |
 | FET-17 | *(v2.1; sửa ở v2.11)* cấu hình khoảng cách < 0,32 giây bị từ chối khi khởi động fetcher (gồm 0,31, 0,3, 0,25, 0,2, 0 và số âm), trước khi gửi request nào; đúng 0,32 giây được chấp nhận |
 | FET-18 | *(v2.1)* thiếu `WIKI_UA_CONTACT` → fetcher dừng trước khi gửi request đầu tiên |
 | FET-19 | *(v2.8, C-9)* lỗi ghi/thay thế được inject ở file output thứ hai (thứ tự ghi do implementation chọn; không cần mạng) | fetcher dừng với lỗi; sau đó ba file `data/` hiện tại có nội dung y như trước (dataset cũ nguyên vẹn); không có output partial nào được coi là dataset mới, tức không có file mới nào nằm ở vị trí production. Một ID có thể có nhiều test (§0.2), nên có thể thêm ca lỗi ở bước thay thế |
 | FET-20 | *(v2.12, C-8)* dữ liệu API cho ra entry có `alias == target` (ví dụ một redirect jawiki mang tên tiếng Anh của người đó, hoặc ja title trùng canonical name) | không có entry `alias == target` nào trong `aliases.json`; các entry khác của cùng người vẫn còn; canonical name trong `graph.json` và `people.json` không đổi; output vẫn qua các kiểm tra của §6.5 |
+| FET-21 | *(v2.14, C-15)* một request của một trang phân trang (continuation) bị lỗi transport (ví dụ `RemoteProtocolError`) rồi lần thử lại thành công; và ca lỗi liên tục ở cùng request | lần thử lại dùng đúng nguyên URL, tham số và object `continue` của lần lỗi; fetcher tiếp tục đúng continuation (không bỏ, không lặp trang) và ba file output giống hệt từng byte lần chạy đối chứng không có lỗi. Lỗi liên tục: đúng 6 lần thử (1 + 5 retry) rồi dừng với lỗi; ba file `data/` cũ nguyên vẹn, không còn staging, không có output partial (C-9) |
 
 ### 7.9 Frontend (mức tối thiểu)
 

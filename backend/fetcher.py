@@ -12,7 +12,8 @@ This is the only place in the project that calls the MediaWiki Action API. It re
 
 Requests are strictly sequential (one ``httpx.Client`` in a plain loop, no asyncio), throttled,
 identified by a User-Agent that carries the operator's contact (``WIKI_UA_CONTACT``), and retried
-according to SPEC §6.4 (C-10, C-11, C-13). The output is transactional at the level of the three
+according to SPEC §6.4 (C-10, C-11, C-13; C-15: a dropped connection or a timeout is retried like a
+429/5xx, within the same cap of 5 retries). The output is transactional at the level of the three
 files (C-9, SPEC v2.8): it is validated against SPEC §6.5 in a staging directory first, and the
 current dataset is only replaced once all three files were written and validated; a failure while
 writing or replacing rolls back to the old dataset.
@@ -52,6 +53,18 @@ MAXLAG = 5  # SPEC §6.4
 TIMEOUT_SECONDS = 30.0  # C-10
 MAX_RETRIES = 5  # C-10
 BACKOFF_BASE_SECONDS = 5.0  # C-10: wait before retry n = max(Retry-After, 5 * 2^(n-1))
+#: C-15 (v2.14): transport errors that are retried like a 429/5xx: the connection was dropped or could
+#: not be made, or the request timed out (TimeoutException covers the 30 s timeout). The list is
+#: explicit on purpose: any other HTTPError (LocalProtocolError, UnsupportedProtocol, DecodingError,
+#: TooManyRedirects, and also CloseError, ProxyError, ...) is not retried. There is no response, so no
+#: Retry-After: the wait is the plain backoff. They share the retry cap with every other cause.
+RETRIED_TRANSPORT_ERRORS = (
+    httpx.RemoteProtocolError,
+    httpx.ReadError,
+    httpx.WriteError,
+    httpx.ConnectError,
+    httpx.TimeoutException,
+)
 #: C-10 (v2.10, v2.11): gap between two request starts. 0.32 s is both the default and the smallest
 #: value accepted: at most 187.5 requests a minute, under the 200 requests/minute Wikimedia allows
 #: unauthenticated clients with a compliant User-Agent. Anything smaller is rejected at start-up.
@@ -170,9 +183,35 @@ class MediaWikiApi:
                 now = self._clock.monotonic()
         self._last_start = now
 
+    @staticmethod
+    def _judge(lang: str, response: httpx.Response) -> tuple[dict | None, str]:
+        """``(body, "")`` for a success, ``(None, reason)`` for a response that is retried, and a
+        ``FetchError`` for one that is not."""
+        status = response.status_code
+        if status == 429 or 500 <= status < 600:
+            return None, f"HTTP {status}"
+        if status != 200:
+            raise FetchError(f"HTTP {status} from {lang}.wikipedia.org; not retried")
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise FetchError(f"{lang}.wikipedia.org sent a body that is not JSON") from exc
+        if not isinstance(body, dict):
+            raise FetchError(f"{lang}.wikipedia.org sent a JSON body that is not an object")
+        error = body.get("error")
+        if error is None:
+            if body.get("warnings"):
+                log.warning("API warnings from %s.wikipedia.org: %s", lang, body["warnings"])
+            return body, ""
+        if not (isinstance(error, dict) and error.get("code") == "maxlag"):
+            raise FetchError(f"API error from {lang}.wikipedia.org: {error}; not retried")
+        return None, "maxlag"
+
     def request(self, lang: str, params: Mapping[str, str]) -> dict:
         """One API call with retries. Every response, HTTP 200 included, is checked for an
-        ``error`` object before it counts as a success."""
+        ``error`` object before it counts as a success. A retry sends the very same request
+        (same URL and parameters, so the same ``continue`` object) and every cause of retry
+        (429, 5xx, maxlag, transport error) draws on one cap of ``MAX_RETRIES``."""
         url = API_URL.format(lang=lang)
         full = {"format": "json", "formatversion": "2", "maxlag": str(MAXLAG), **params}
         retries = 0
@@ -180,35 +219,23 @@ class MediaWikiApi:
             self._throttle()
             self.requests += 1
             self.requests_by_step[self.step] = self.requests_by_step.get(self.step, 0) + 1
+            response: httpx.Response | None = None
             try:
                 response = self._client.get(url, params=full)
+            except RETRIED_TRANSPORT_ERRORS as exc:  # C-15: no response, so no Retry-After
+                reason = f"transport error {type(exc).__name__}: {exc}"
             except httpx.HTTPError as exc:
                 raise FetchError(f"request to {lang}.wikipedia.org failed: {exc!r}") from exc
-            status = response.status_code
-            if status == 429 or 500 <= status < 600:
-                reason = f"HTTP {status}"
-            elif status != 200:
-                raise FetchError(f"HTTP {status} from {lang}.wikipedia.org; not retried")
             else:
-                try:
-                    body = response.json()
-                except ValueError as exc:
-                    raise FetchError(f"{lang}.wikipedia.org sent a body that is not JSON") from exc
-                if not isinstance(body, dict):
-                    raise FetchError(f"{lang}.wikipedia.org sent a JSON body that is not an object")
-                error = body.get("error")
-                if error is None:
-                    if body.get("warnings"):
-                        log.warning("API warnings from %s.wikipedia.org: %s", lang, body["warnings"])
+                body, reason = self._judge(lang, response)
+                if body is not None:
                     return body
-                if not (isinstance(error, dict) and error.get("code") == "maxlag"):
-                    raise FetchError(f"API error from {lang}.wikipedia.org: {error}; not retried")
-                reason = "maxlag"
             retries += 1
             if retries > MAX_RETRIES:
                 raise FetchError(f"giving up after {MAX_RETRIES} retries ({reason})")
             self.retries += 1
-            wait = max(_retry_after(response) or 0.0, BACKOFF_BASE_SECONDS * 2 ** (retries - 1))
+            retry_after = _retry_after(response) if response is not None else None
+            wait = max(retry_after or 0.0, BACKOFF_BASE_SECONDS * 2 ** (retries - 1))
             log.warning("%s from %s.wikipedia.org; retry %d/%d in %.1f s", reason, lang, retries, MAX_RETRIES, wait)
             self._clock.sleep(wait)
 
