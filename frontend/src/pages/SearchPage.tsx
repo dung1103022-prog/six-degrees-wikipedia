@@ -4,6 +4,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { searchPeople, type SearchFailure } from "../api/search";
 import type { ErrorDetail, PersonMeta, SearchResponse } from "../api/types";
+import GraphView from "../components/GraphView";
 import PathList from "../components/PathList";
 import SearchFailureView from "../components/SearchFailureView";
 import { strings } from "../ui/strings";
@@ -74,11 +75,17 @@ export default function SearchPage() {
 }
 
 function Result({ response }: { response: SearchResponse }) {
-  if (!response.found) return <p role="status">{strings.noPath(response.from, response.to)}</p>;
   return (
     <section>
-      <p>{strings.pathLength(response.length)}</p>
-      <PathList people={response.path} />
+      {response.found ? (
+        <>
+          <p>{strings.pathLength(response.length)}</p>
+          <PathList people={response.path} />
+        </>
+      ) : (
+        <p role="status">{strings.noPath(response.from, response.to)}</p>
+      )}
+      <GraphView response={response} />
     </section>
   );
 }

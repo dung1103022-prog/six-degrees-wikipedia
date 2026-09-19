@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchPath } from "../api/path";
 import { searchPeople, type SearchFailure } from "../api/search";
 import type { ErrorDetail, PersonMeta, SearchResponse } from "../api/types";
+import GraphView from "../components/GraphView";
 import PathList from "../components/PathList";
 import SearchFailureView from "../components/SearchFailureView";
 import { parseShareNames } from "../lib/shareUrl";
@@ -98,6 +99,7 @@ function NewSearchView({ search, onChoose }: { search: NewSearch; onChoose: (par
       {search.status === "done" && !search.response.found ? (
         <p role="status">{strings.noPath(search.response.from, search.response.to)}</p>
       ) : null}
+      {search.status === "done" ? <GraphView response={search.response} /> : null}
     </section>
   );
 }
