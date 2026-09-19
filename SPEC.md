@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.14 (duyệt C-15: fetcher retry lỗi transport `RemoteProtocolError`/`ReadError`/`WriteError`/`ConnectError`/`TimeoutException`, chung cap 5 retry; Phase 4 đã mở ở v2.13)
+**Version:** 2.15 (Phase 1–4 hoàn thành; ghi dataset chính thức, nợ kỹ thuật N-1/N-2 và các lựa chọn implementation của N-4; sửa đoạn stale; logging khởi động; **không đổi contract**)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,17 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.15 — Hoàn thành Phase 1–4; hoàn thiện tài liệu (không đổi contract)
+
+Quyết định nguồn: chủ project, 2026-09-19. Chỉ tài liệu và một sửa cấu hình logging; **không thay đổi contract** của Phase 1–4 (`/api/*`, `/share`, `validate_path`, dữ liệu, fetcher, static/SPA, Docker). Không mở C-2, C-3, C-4, C-7.
+
+- **§0.3:** Phase 1–4 chuyển sang "**Hoàn thành**". Phase 2, 3, 4 đã mở ở v2.4, v2.9, v2.13. Phase 4 gồm SPA (`1958654`), frontend FE-01..FE-06 (`2688e28`), GraphView (`d552c92`), history (`7469744`) và Dockerfile (`13d8297`).
+- **Đoạn stale (§0.4, dưới bảng):** câu "pha 3 vẫn chưa mở nên chưa implement" (C-6, C-9) đã lỗi thời từ v2.9; sửa thành "đã implement khi pha 3 mở", kèm test ID.
+- **§6.6:** ghi dataset chính thức hiện tại: **9.997 people / 427.057 edges / 119.335 aliases**, sinh từ 10.000 seed, đã commit ở `844123a`. Đây là ghi nhận trạng thái; nội dung dataset không phải contract.
+- **§9:** N-3 đánh dấu đã xử lý; N-4 ghi các lựa chọn của history là **lựa chọn của implementation, không phải contract**; thêm mục "Nợ kỹ thuật còn lại" ghi **N-1** và **N-2** (chuyển từ "Ghi chú kỹ thuật", cập nhật theo thực tế).
+- **§6.5 (log sau khi validate), không đổi nội dung:** loader vốn đã ghi INFO "aliases per source" và số match key mơ hồ (DAT-16), nhưng khi chạy dưới uvicorn (và trong container) các dòng này **bị mất**: uvicorn chỉ cấu hình logger của chính nó nên logger gốc không có handler, mức WARNING. `create_app` nay thêm một handler stderr mức INFO cho logger `app` **chỉ khi chưa ai cấu hình logging**; khi host đã cấu hình (pytest, `--log-config`) thì không đụng. Test: `backend/tests/test_startup_logging.py` (không có test ID trong §7).
+- **Không thay đổi:** mọi contract và test ID; C-2, C-3, C-4, C-7 vẫn "Chưa duyệt"; `API-17` và `DAT-10` vẫn chưa có test vì phụ thuộc các điểm đó (§7.0).
 
 ### v2.14 — Duyệt C-15: lỗi transport được retry
 
@@ -243,10 +254,10 @@ Bản đầu tiên.
 ### 0.3 Phân pha implementation
 | Pha | Phạm vi | Test phải có | Trạng thái |
 |---|---|---|---|
-| 1 | data loader + startup validation (không gồm placeholder), BFS, resolver, `validate_path`, schema, `/api/people`, `/api/search`, `/api/resolve`, `/api/path` | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | **Được phép bắt đầu** |
-| 2 | `/share` (bật tường minh, §0.3 "Chế độ chạy"), kiểm tra `dist/index.html` và placeholder `<!--OG-->` lúc khởi động | SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | **Được phép bắt đầu** *(v2.4)* |
-| 3 | fetcher (`backend/fetcher.py`) | FET-* | **Được phép bắt đầu** *(v2.9)* |
-| 4 | frontend (`frontend/`, ADR-014), static mount + SPA fallback (§3.4), Dockerfile (§6.6) | FE-*, SPA-* | **Được phép bắt đầu** *(v2.13)*; Q-3 đã chốt (tiếng Việt, v2.5) |
+| 1 | data loader + startup validation (không gồm placeholder), BFS, resolver, `validate_path`, schema, `/api/people`, `/api/search`, `/api/resolve`, `/api/path` | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | **Hoàn thành** *(v2.15)* |
+| 2 | `/share` (bật tường minh, §0.3 "Chế độ chạy"), kiểm tra `dist/index.html` và placeholder `<!--OG-->` lúc khởi động | SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | **Hoàn thành** *(v2.15; mở ở v2.4)* |
+| 3 | fetcher (`backend/fetcher.py`) | FET-* | **Hoàn thành** *(v2.15; mở ở v2.9)* |
+| 4 | frontend (`frontend/`, ADR-014), static mount + SPA fallback (§3.4), Dockerfile (§6.6) | FE-*, SPA-* | **Hoàn thành** *(v2.15; mở ở v2.13)*; Q-3 đã chốt (tiếng Việt, v2.5) |
 
 - Không viết code của pha chưa mở, kể cả code "chuẩn bị sẵn".
 - Pha 1 không phụ thuộc `dist/` hay frontend build: ở chế độ Phase 1 (bên dưới) app phải khởi động và chạy test được khi chưa có `dist/`.
@@ -305,7 +316,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-18 | Static mount `DIST_DIR` + SPA catch-all chỉ khi `enable_share=True`; `/api/*` không khớp → 404 (không phải `index.html`) | §3.4, §7.10 | Đã chốt (v2.13) |
 | Q-19 | `thumbnail = null` hiển thị placeholder ở mọi nơi hiển thị `PersonMeta` | §7.9 (FE-06) | Đã chốt (v2.13) |
 
-Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-14 đã được duyệt ở v2.12: loader kiểm A-7 (test DAT-15, phần A-7) và fetcher ghi mảng đã sắp xếp (FET-07, FET-14). C-8 đã được duyệt ở v2.12: phần loader (chấp nhận `alias == target`) đã đúng sẵn và có test ở DAT-14; phần fetcher (bỏ entry) thuộc pha 3, test FET-20. C-6, C-9 thuộc pha 3 và đã được duyệt ở v2.7, nhưng pha 3 vẫn chưa mở nên chưa implement. C-15 đã được duyệt ở v2.14 và thuộc pha 3 (fetcher): test FET-06, FET-15, FET-21. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
+Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-14 đã được duyệt ở v2.12: loader kiểm A-7 (test DAT-15, phần A-7) và fetcher ghi mảng đã sắp xếp (FET-07, FET-14). C-8 đã được duyệt ở v2.12: phần loader (chấp nhận `alias == target`) đã đúng sẵn và có test ở DAT-14; phần fetcher (bỏ entry) thuộc pha 3, test FET-20. C-6, C-9 thuộc pha 3, được duyệt ở v2.7 và đã được implement khi pha 3 mở (v2.9): test FET-11 (C-6), FET-14 và FET-19 (C-9). C-15 đã được duyệt ở v2.14 và thuộc pha 3 (fetcher): test FET-06, FET-15, FET-21. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
 ---
 
@@ -922,6 +933,7 @@ Sau khi validate, loader dựng `ResolverIndex` (§4A) và ghi log (không fail)
 - **Image không chứa và không chạy fetcher** (không cài extra `fetcher`, tức không có `httpx`). Production runtime không gọi mạng (ADR-009).
 - Dữ liệu thiếu hoặc vi phạm §6.5 → app không khởi động, nên container thoát ngay (fail fast). Không có cơ chế sửa dữ liệu lúc chạy.
 - **Đổi dataset = build lại image.**
+- **Dataset chính thức hiện tại** *(ghi nhận ở v2.15, không phải contract)*: **9.997 people / 427.057 edges / 119.335 aliases** (`en_redirect` 98.578, `ja_redirect` 12.347, `ja_title` 8.410; 0 match key mơ hồ), sinh bởi fetcher từ 10.000 seed (3 seed được gộp vì là redirect của một seed khác) và đã commit ở `844123a`. Con số này có thể đổi mỗi khi dataset được fetch lại; chỉ các invariant của §6.1–6.5 là contract.
 - Phase 4 **không tạo, không sửa và không chọn** dataset. Việc xác nhận nội dung `data/` là dataset chính thức là quyết định riêng của chủ project.
 - Dockerfile **không có test ID tự động** ở v2.13; kiểm bằng `docker build` và chạy container thủ công, và không thuộc coverage của §7.0.
 
@@ -1197,13 +1209,18 @@ Test pytest với `TestClient`, `enable_share=True`, dùng fixture `backend/test
 Hiện không còn câu hỏi mở. *(v2.5: Q-3 đã chốt; v2.13: Q-12..Q-19 đã chốt, Phase 4 mở.)*
 
 ### Ghi chú kỹ thuật cần review *(v2.3)*
-Không phải quyết định mở; không ảnh hưởng pha 1.
-- **N-1:** với các version đã pin (`fastapi==0.141.1`, `starlette==1.6.0`, `httpx==0.28.1`), `fastapi.testclient.TestClient` phát `StarletteDeprecationWarning` về việc dùng `httpx` cho Starlette test client. Pha 1 **không** thay đổi dependency vì cảnh báo này. Review riêng khi nâng dependency hoặc trước khi mở pha 3 (fetcher dùng `httpx`).
+Không phải quyết định mở. *(v2.15: N-1 và N-2 là nợ kỹ thuật, chuyển sang mục "Nợ kỹ thuật còn lại" bên dưới.)*
+- **N-3 (v2.13; đã xử lý, v2.15):** `backend/tests/conftest.py` phải loại các ID có tiền tố `FE-` khỏi coverage của pytest khi pha 4 được đưa vào, vì FE-* do cơ chế của frontend kiểm (§7.9). Đã làm ở commit `2c44232`: `required_ids` bỏ `FE-*`, `OPEN_PHASES = (1, 2, 3, 4)`, pytest chỉ báo SPA-* cho pha 4.
+- **N-4 (v2.13; các lựa chọn được ghi ở v2.15):** nội dung một entry lịch sử và cách xử lý entry trùng chưa được quy định; đó là lựa chọn của implementation, **không phải contract**, và không được viết test để khóa (§0.4 nguyên tắc 4). FE-02 chỉ kiểm giới hạn 20 entry (Q-15) với entry khác nhau và khả năng chịu storage rỗng/hỏng. Cũng chưa quy định cách hiển thị `description = null` (FE-06 chỉ nói về `thumbnail`). **Các lựa chọn hiện tại của implementation** (có thể đổi mà không đổi SPEC; không test nào khóa chúng, các test của `tests/search-history.test.tsx` chỉ quan sát qua giao diện):
+  - một entry là cặp `{from, to}` **tên canonical lấy từ response** của search, không phải chữ đã gõ;
+  - lưu trong `localStorage` với key `sixth-degree.history`, entry mới nhất đứng đầu;
+  - một search có câu trả lời (HTTP 200, kể cả `found=false`) được lưu; search lỗi (`UNRESOLVED_NAME`, `AMBIGUOUS_NAME` chưa chọn, 5xx, mất mạng) thì không;
+  - bấm một entry trong lịch sử chạy lại search với hai tên đó và **không** thêm entry lần thứ hai; một search gõ tay trùng entry cũ vẫn được thêm (không loại trùng).
 
-- **N-2 (v2.6):** guard chặn network của `backend/tests/conftest.py` chặn mọi kết nối không phải `AF_UNIX`. Trên Windows, asyncio dùng loopback TCP cho event loop nội bộ (self-pipe qua `socketpair()`), nên `TestClient` không khởi động được và test fail ngay từ đầu; chỉ chạy được khi có shim cho phép loopback đặt ngoài repo. Nợ kỹ thuật riêng, sẽ xử lý bằng một commit riêng sau này (giữ nguyên yêu cầu §0.2: mọi kết nối ra ngoài phải làm test fail). **Không sửa `conftest.py` hay network guard trong v2.6.**
-
-- **N-3 (v2.13):** `backend/tests/conftest.py` hiện chỉ báo coverage cho `OPEN_PHASES = (1, 2, 3)`. Khi pha 4 được đưa vào, `required_ids(4)` sẽ gồm cả FE-* (đọc từ bảng §7.0) mà pytest không thể phủ, vì FE-* do cơ chế của frontend kiểm (§7.9). Lúc implement, `conftest.py` phải loại các ID có tiền tố `FE-` khỏi coverage của pytest và chỉ báo SPA-*. Không sửa `conftest.py` ở v2.13.
-- **N-4 (v2.13):** nội dung một entry lịch sử (ví dụ cặp `from`/`to` hay cả kết quả) và cách xử lý entry trùng chưa được quy định; đây là lựa chọn của implementation, **không phải contract**, và không được viết test để khóa (§0.4 nguyên tắc 4). FE-02 chỉ kiểm giới hạn 20 entry với entry khác nhau và khả năng chịu storage rỗng/hỏng. Cũng chưa quy định cách hiển thị `description = null` (FE-06 chỉ nói về `thumbnail`).
+### Nợ kỹ thuật còn lại *(mới ở v2.15)*
+Không chặn việc nào của Phase 1–4 (đã hoàn thành) và không phải quyết định mở.
+- **N-1:** với các version đã pin (`fastapi==0.141.1`, `starlette==1.6.0`, `httpx==0.28.1`), `fastapi.testclient.TestClient` phát cảnh báo deprecation: `StarletteDeprecationWarning` ("dùng `httpx` với `starlette.testclient` là deprecated, nên cài `httpx2`") và một cảnh báo về alias `anyio.abc.BlockingPortal`; tức 2 cảnh báo ở mỗi lần chạy pytest. Chỉ ảnh hưởng test (`TestClient`); production runtime không dùng `httpx`, còn fetcher dùng `httpx==0.28.1` không bị ảnh hưởng. Chưa đổi dependency vì cảnh báo này; review riêng khi nâng dependency.
+- **N-2 (v2.6):** guard chặn network của `backend/tests/conftest.py` chặn mọi kết nối không phải `AF_UNIX`. Trên Windows, asyncio dùng loopback TCP cho event loop nội bộ (self-pipe qua `socketpair()`), nên `TestClient` không khởi động được và test fail ngay từ đầu; chỉ chạy được khi có shim cho phép loopback đặt ngoài repo (các lần chạy pytest trên Windows đến nay đều dùng shim như vậy). Chưa xử lý. Hướng xử lý: một commit riêng cho phép loopback (`127.0.0.1`, `::1`) trong guard và vẫn chặn mọi kết nối khác, giữ nguyên yêu cầu §0.2 (mọi kết nối ra ngoài phải làm test fail). **Không sửa `conftest.py` hay network guard trong v2.15.**
 
 ### Đã chốt
 - **Q-12..Q-19 (v2.13):** stack frontend (React + Vite + TypeScript; Vitest + Testing Library; Sigma.js + Graphology), history 20 entry, marker `@spec FE-NN` và cơ chế coverage FE-*, Docker `DATA_DIR=/app/data` với dataset copy vào image, static mount + SPA fallback (SPA-01..05), `thumbnail = null` (FE-06). Xem ADR-014, §3.4, §6.6, §7.9, §7.10.

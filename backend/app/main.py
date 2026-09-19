@@ -9,6 +9,7 @@ Run: DATA_DIR=./data DIST_DIR=./dist uvicorn app.main:create_app --factory
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -19,6 +20,25 @@ from app.data import load_data
 from app.share import load_index_template
 from app.share import router as share_router
 from app.static import register_spa
+
+
+def _show_app_logs() -> None:
+    """Make the INFO lines of the ``app`` loggers visible (SPEC §6.5: the loader logs the aliases per source
+    and the ambiguous match keys after validating).
+
+    uvicorn configures only its own loggers, so with ``uvicorn app.main:create_app --factory`` (and in the
+    container) the root logger has no handler and a level of WARNING, and those lines were dropped. When nobody
+    has configured logging (no handler on the root or on ``app``), give ``app`` one stderr handler at INFO, in
+    the style of uvicorn's lines. If the host has configured logging (pytest, ``--log-config``, another app)
+    nothing is touched.
+    """
+    app_logger = logging.getLogger("app")
+    if app_logger.handlers or logging.getLogger().handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s: %(message)s"))
+    app_logger.addHandler(handler)
+    app_logger.setLevel(logging.INFO)
 
 
 def create_app(
@@ -40,6 +60,7 @@ def create_app(
     The static mount of ``dist/`` and the SPA catch-all (SPEC §3.4, Q-18) follow the same switch:
     they are registered only with ``enable_share=True``, after ``/api/*`` and ``/share``.
     """
+    _show_app_logs()
     directory = Path(data_dir if data_dir is not None else os.environ.get("DATA_DIR", "./data"))
 
     app = FastAPI(title="Six Degrees of Wikipedia")
