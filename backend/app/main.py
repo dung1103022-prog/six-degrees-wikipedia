@@ -2,7 +2,8 @@
 
 Phase 1: data loading + /api routes.
 Phase 2: GET /share, switched by the explicit ``enable_share`` parameter (SPEC §0.3, Q-5).
-Static mount of dist/ and the SPA catch-all (SPEC §3.4) belong to Phase 4.
+Phase 4: static files of dist/ and the SPA fallback (SPEC §3.4, Q-18), registered last and only
+when ``enable_share=True``.
 
 Run: DATA_DIR=./data DIST_DIR=./dist uvicorn app.main:create_app --factory
 """
@@ -17,6 +18,7 @@ from app.api import router as api_router
 from app.data import load_data
 from app.share import load_index_template
 from app.share import router as share_router
+from app.static import register_spa
 
 
 def create_app(
@@ -34,6 +36,9 @@ def create_app(
       (SPEC §5.5, Q-8). ``/share`` is then registered.
     - ``enable_share=False`` (Phase 1 / test mode): ``dist/`` is not looked at and ``/share``
       is not registered.
+
+    The static mount of ``dist/`` and the SPA catch-all (SPEC §3.4, Q-18) follow the same switch:
+    they are registered only with ``enable_share=True``, after ``/api/*`` and ``/share``.
     """
     directory = Path(data_dir if data_dir is not None else os.environ.get("DATA_DIR", "./data"))
 
@@ -45,4 +50,5 @@ def create_app(
         dist = Path(dist_dir if dist_dir is not None else os.environ.get("DIST_DIR", "./dist"))
         app.state.index_template = load_index_template(dist)
         app.include_router(share_router)
+        register_spa(app, dist)  # last: it must never shadow /api/* or /share (SPEC §3.4)
     return app

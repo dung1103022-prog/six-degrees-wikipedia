@@ -14,3 +14,4 @@ data-pilot/
 # Staging directories of an interrupted fetcher run (SPEC §6.4, C-9); normally removed at the end.
 .fetch-staging-*/
 data-pilot*/
+node_modules/
