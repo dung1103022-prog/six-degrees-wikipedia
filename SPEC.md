@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.3 (quy tắc: chỉ điểm đã duyệt mới implement/test; sửa contract Phase 1 cho khớp)
+**Version:** 2.4 (chốt Q-2: `/share` luôn 200 HTML; định nghĩa "OG meta mặc định"; mở pha 2)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,20 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.4 — Chốt Q-2: `/share` luôn 200 HTML; định nghĩa "OG meta mặc định"
+
+Quyết định nguồn: chủ project, 2026-09-19. Chỉ Q-2 được chốt; mọi điểm khác giữ nguyên trạng thái.
+
+- **Q-2 (chốt):** `GET /share` luôn trả HTTP `200` với `text/html` cho mọi input. Không bao giờ trả JSON 422/404 từ `/share`. Pha 2 được mở.
+- **§5.4 (sửa):** path hợp lệ → `<!--OG-->` được thay bằng bộ OG meta dựng từ canonical path đã validate. Path không hợp lệ → `<!--OG-->` được thay bằng **chuỗi rỗng**; server **không** chèn bộ OG mặc định riêng. "OG meta mặc định của site" được định nghĩa chính thức là **các meta tag tĩnh đã có sẵn trong `dist/index.html`**. Không thêm hằng số text mới, nên hành vi này **không phụ thuộc Q-3**.
+- **§0.3:** pha 2 chuyển từ "**Chặn** cho tới khi Q-2 được chốt" sang "**Được phép bắt đầu**".
+- **§0.4:** Q-2 chuyển từ "**OPEN** — chặn pha 2" sang "Đã chốt (v2.4)".
+- **§5.3:** bỏ ghi chú "hành vi khi không hợp lệ phụ thuộc Q-2".
+- **§7.0:** nhóm `SHR-*, PTH-11, DAT-08` bỏ chú thích "(chặn bởi Q-2)".
+- **§7.6:** SHR-01 ghi rõ status 200. SHR-03, SHR-04 ghi rõ kỳ vọng của OG mặc định. SHR-05..07 đổi từ "bị từ chối theo Q-2" sang "200 `text/html`, OG mặc định". **Thêm SHR-13:** `/share` không có `p` → 200, OG mặc định (đối xứng với PTH-08). PTH-11 cập nhật danh sách input dùng chung.
+- **§9:** Q-2 chuyển xuống mục "Đã chốt". **Q-3 vẫn OPEN.**
+- Không thay đổi `/api/path` (C-12 giữ nguyên: 200 `{"valid": false, "path": []}`), không thay đổi C-3, C-4, C-6..C-9, không mở pha 3/4.
 
 ### v2.3 — Chỉ điểm "Đã duyệt" mới được implement và bắt buộc test
 
@@ -116,7 +130,7 @@ Bản đầu tiên.
 | Pha | Phạm vi | Test phải có | Trạng thái |
 |---|---|---|---|
 | 1 | data loader + startup validation (không gồm placeholder), BFS, resolver, `validate_path`, schema, `/api/people`, `/api/search`, `/api/resolve`, `/api/path` | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | **Được phép bắt đầu** |
-| 2 | `/share`, kiểm tra placeholder `<!--OG-->` | SHR-*, PTH-11, DAT-08 | **Chặn** cho tới khi Q-2 được chốt |
+| 2 | `/share`, kiểm tra placeholder `<!--OG-->` | SHR-*, PTH-11, DAT-08 | **Được phép bắt đầu** *(v2.4)* |
 | 3 | fetcher | FET-* | Chưa mở; chờ chủ project mở pha |
 | 4 | frontend | FE-* | Chưa mở; chờ chủ project mở pha; Q-3 cần chốt trước phần hiển thị OG/UI text |
 
@@ -150,7 +164,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | C-12 | `/api/path` không bao giờ trả 422; mọi path không hợp lệ → `{"valid": false, "path": []}` | §3.7 | Đã duyệt (v2.2) |
 | C-13 | Fetcher từ chối chạy nếu thiếu `WIKI_UA_CONTACT`; không hardcode contact | §6.4 | Đã duyệt (v2.2) |
 | Q-1 | `GET /api/path` + `validate_path()` thuần dùng chung với `/share`; PTH-11 bảo đảm cùng phán quyết | §3.7, §5.3 | Đã chốt (v2.1) |
-| Q-2 | Status code / representation của `/share` khi input không hợp lệ | §9 | **OPEN** — chặn pha 2 |
+| Q-2 | `/share` luôn 200 `text/html`; path không hợp lệ → placeholder thay bằng chuỗi rỗng, giữ meta tĩnh của `dist/index.html` | §5.4, §9 | Đã chốt (v2.4) |
 | Q-3 | Ngôn ngữ của `og:title` / UI | §9 | **OPEN** |
 | Q-4 | Fetcher tuần tự, concurrency = 1; không có tùy chọn 2–3 | §6.4 | Đã chốt (v2.1) |
 
@@ -557,7 +571,7 @@ Quy tắc hệ quả:
 - **Lưu ý version:** ràng buộc `min_length`/`max_length` trên `list[str]` có thể được hiểu là độ dài list hoặc độ dài từng phần tử tùy version FastAPI/Pydantic. Không dựa vào cú pháp này: validate số phần tử và độ dài từng phần tử một cách tường minh trong `validate_path` (§5.3), và khóa hành vi bằng test SHR-05..07 và PTH-05..07.
 
 ### 5.3 Validation phía server
-Logic nằm trong một hàm thuần duy nhất, `validate_path(names: Sequence[str], edges: Mapping[str, frozenset[str]]) -> list[str] | None` *(chữ ký sửa ở v2.3)*, trong đó `edges` là dict cạnh dựng lúc khởi động (trả danh sách tên đã NFC nếu hợp lệ, `None` nếu không), trong `backend/app/paths.py` (pha 1; không đặt trong module của route `/share`). `/share` và `/api/path` đều chỉ gọi hàm này; không endpoint nào tự validate riêng. *(v2.1)* Hai route dùng chung phán quyết nhưng có representation riêng: `/api/path` trả JSON `PathResponse`, `/share` trả HTML (hành vi khi không hợp lệ phụ thuộc Q-2). *(v2.2)*
+Logic nằm trong một hàm thuần duy nhất, `validate_path(names: Sequence[str], edges: Mapping[str, frozenset[str]]) -> list[str] | None` *(chữ ký sửa ở v2.3)*, trong đó `edges` là dict cạnh dựng lúc khởi động (trả danh sách tên đã NFC nếu hợp lệ, `None` nếu không), trong `backend/app/paths.py` (pha 1; không đặt trong module của route `/share`). `/share` và `/api/path` đều chỉ gọi hàm này; không endpoint nào tự validate riêng. *(v2.1)* Hai route dùng chung phán quyết nhưng có representation riêng: `/api/path` trả JSON `PathResponse`, `/share` trả HTML (§5.4). *(v2.2; Q-2 chốt ở v2.4)*
 
 Path hợp lệ khi và chỉ khi:
 1. Số phần tử và độ dài nằm trong giới hạn 5.2;
@@ -566,15 +580,19 @@ Path hợp lệ khi và chỉ khi:
 
 **Invariant (v2):** share URL là biểu diễn của identity. Alias (`安倍晋三`, `Abe Shinzo`) hoặc tên có `_` trong `p` làm path không hợp lệ, kể cả khi resolver có thể resolve được chúng.
 
-### 5.4 Response của `GET /share`
-- Trả `text/html`: nội dung `dist/index.html` với placeholder `<!--OG-->` trong `<head>` được thay bằng các meta tag.
-- **Path hợp lệ:**
-  - `og:title` = `"{first} → {last}: {n} bước"` (format đặt trong một hằng số duy nhất);
+### 5.4 Response của `GET /share` *(chốt Q-2 ở v2.4)*
+- **Luôn HTTP `200`, luôn `text/html`**, cho mọi input — kể cả thiếu `p`, sai số lượng, tên quá dài, tên không có trong graph, hay cạnh không tồn tại. `/share` **không bao giờ** trả JSON 422/404. Cùng tinh thần với C-12 cho `/api/path`.
+- Body là nội dung `dist/index.html` với placeholder `<!--OG-->` trong `<head>` được thay thế; phần còn lại của file giữ nguyên.
+- Phán quyết hợp lệ/không hợp lệ đến **duy nhất** từ `validate_path` (§5.3); `/share` không tự validate.
+- **Path hợp lệ** (`validate_path` trả danh sách tên) — placeholder được thay bằng các meta tag:
+  - `og:title` = `"{first} → {last}: {n} bước"` (format đặt trong một hằng số duy nhất; ngôn ngữ phụ thuộc Q-3, vẫn OPEN, đổi được mà không ảnh hưởng contract);
   - `og:description` = các tên trên path nối bằng `" → "`;
   - `og:image` = thumbnail của người đầu tiên; **bỏ hẳn tag** nếu thumbnail là `None`;
   - `og:url` = URL share **dựng lại từ các tên đã validate** bằng `urlencode(..., doseq=True)`, không echo lại chuỗi query thô;
   - `twitter:card` = `summary`.
-- **Path không hợp lệ:** OG meta mặc định của site (xem Open question Q-2 về status code).
+- **Path không hợp lệ** (`validate_path` trả `None`) — placeholder được thay bằng **chuỗi rỗng**. Server **không** chèn bộ OG mặc định riêng và không thêm hằng số text nào. *(v2.4)* **"OG meta mặc định của site" được định nghĩa là các meta tag tĩnh đã có sẵn trong `dist/index.html`**; chúng nguyên vẹn vì chỉ placeholder bị thay. Vì không sinh text mới, hành vi này **không phụ thuộc Q-3**.
+- Trong cả hai trường hợp, HTML trả về **không còn chuỗi `<!--OG-->`**.
+- Frontend tại `/share` hiển thị thông báo "link không còn hợp lệ" theo §5.6; backend không sinh thông báo lỗi trong HTML.
 - Mọi giá trị chèn vào HTML phải qua `html.escape(value, quote=True)`. URL encoding không phải là cơ chế bảo vệ HTML.
 
 ### 5.5 Placeholder
@@ -732,7 +750,7 @@ Sau khi validate, loader dựng `ResolverIndex` (§4A) và ghi log (không fail)
 | Nhóm | Pha |
 |---|---|
 | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | 1 |
-| SHR-*, PTH-11, DAT-08 | 2 (chặn bởi Q-2) |
+| SHR-*, PTH-11, DAT-08 | 2 |
 | FET-* | 3 |
 | FE-* | 4 |
 
@@ -854,18 +872,19 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 ### 7.6 Share
 | ID | Request | Kỳ vọng |
 |---|---|---|
-| SHR-01 | path hợp lệ | HTML chứa `og:title`, `og:description`, `og:url` đúng |
+| SHR-01 | path hợp lệ | 200 `text/html`; HTML chứa `og:title`, `og:description`, `og:url` đúng; không còn `<!--OG-->` |
 | SHR-02 | người đầu không có thumbnail | không có tag `og:image` |
-| SHR-03 | cạnh không tồn tại (path bị sửa) | OG mặc định |
-| SHR-04 | tên không tồn tại | OG mặc định |
-| SHR-05 | 1 phần tử `p` | bị từ chối theo Q-2 |
-| SHR-06 | 11 phần tử `p` | bị từ chối theo Q-2 |
-| SHR-07 | một phần tử dài 256 ký tự | bị từ chối theo Q-2 |
+| SHR-03 | cạnh không tồn tại (path bị sửa) | *(v2.4)* 200 `text/html`; placeholder thay bằng chuỗi rỗng → không còn `<!--OG-->`, không có `og:title`/`og:description`/`og:image`/`og:url` do server sinh; meta tĩnh của `dist/index.html` vẫn còn nguyên |
+| SHR-04 | tên không tồn tại | *(v2.4)* như SHR-03 |
+| SHR-05 | 1 phần tử `p` | *(v2.4)* 200 `text/html`, OG mặc định (như SHR-03) |
+| SHR-06 | 11 phần tử `p` | *(v2.4)* 200 `text/html`, OG mặc định (như SHR-03) |
+| SHR-07 | một phần tử dài 256 ký tự | *(v2.4)* 200 `text/html`, OG mặc định (như SHR-03) |
 | SHR-08 | tên chứa `<script>`, `"`, `&` | được escape trong HTML, không phá vỡ thuộc tính |
 | SHR-09 | tên chứa `&`, `+`, `?`, Unicode | round-trip: URL tạo bằng `urlencode(doseq=True)` → parse lại → đúng danh sách tên |
 | SHR-10 | `og:url` | dựng từ tên đã validate, không chứa param lạ từ request gốc |
 | SHR-11 | *(v2)* share URL dựng từ response của search với input `安倍晋三` | chỉ chứa `p=Shinzo+Abe`, không chứa ký tự tiếng Nhật |
 | SHR-12 | *(v2)* `p=安倍晋三` hoặc `p=Abe Shinzo` (alias) trong path có cạnh đúng | không hợp lệ (share không đi qua resolver) |
+| SHR-13 | *(v2.4)* không có `p` nào | 200 `text/html`, OG mặc định (như SHR-03); không phải 422 — đối xứng với PTH-08 |
 
 ### 7.6A Path validation (`/api/path` và `validate_path`) *(mới ở v2.1)*
 | ID | Request | Kỳ vọng |
@@ -880,7 +899,7 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | PTH-08 | không có `p` | 200, `valid=false` (không phải 422) |
 | PTH-09 | tên gửi ở dạng NFD | được NFC-normalize, `valid=true` nếu path đúng |
 | PTH-10 | tên có `&`, `+`, `?`, `(`, `/`, Unicode, encode bằng `URLSearchParams` | round-trip đúng, `valid=true` |
-| PTH-11 | *(pha 2)* bảng input dùng chung cho SHR-01..07, SHR-12 và PTH-01..09 | với mọi input, `/api/path` trả `valid=true` khi và chỉ khi `/share` sinh OG của path hợp lệ; cả hai gọi `validate_path` (kiểm tra bằng spy/mock) |
+| PTH-11 | *(pha 2)* bảng input dùng chung cho SHR-01..07, SHR-12, SHR-13 và PTH-01..09 | với mọi input, `/api/path` trả `valid=true` khi và chỉ khi `/share` sinh OG của path hợp lệ; cả hai gọi `validate_path` (kiểm tra bằng spy/mock) |
 
 ### 7.7 Data loader
 | ID | Dữ liệu fixture lỗi | Kỳ vọng |
@@ -955,10 +974,6 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 
 ## 9. Open questions (chưa implement cho tới khi chốt)
 
-- **Q-2 [OPEN — chặn pha 2]: `/share` phản hồi thế nào với input không hợp lệ (sai số lượng, quá dài)?**
-  `/share` là trang cho người và crawler, nên 422 JSON mặc định của FastAPI sẽ hiện ra một trang JSON thô.
-  - Phương án đề xuất: `/share` luôn trả 200 HTML; input không hợp lệ → OG mặc định, frontend hiển thị thông báo (theo §5.6). Khi đó `/share` và `/api/path` cùng một kiểu hành xử (C-12).
-  - Phương án khác: trả 400 kèm HTML thông báo lỗi.
 - **Q-3 [OPEN]: Ngôn ngữ của `og:title` / UI** (tiếng Việt, tiếng Anh, hay tiếng Nhật). Format đặt trong một hằng số nên có thể đổi sau mà không ảnh hưởng contract.
 
 ### Ghi chú kỹ thuật cần review *(v2.3)*
@@ -966,5 +981,6 @@ Không phải quyết định mở; không ảnh hưởng pha 1.
 - **N-1:** với các version đã pin (`fastapi==0.141.1`, `starlette==1.6.0`, `httpx==0.28.1`), `fastapi.testclient.TestClient` phát `StarletteDeprecationWarning` về việc dùng `httpx` cho Starlette test client. Pha 1 **không** thay đổi dependency vì cảnh báo này. Review riêng khi nâng dependency hoặc trước khi mở pha 3 (fetcher dùng `httpx`).
 
 ### Đã chốt
+- **Q-2 (v2.4):** `/share` luôn trả 200 `text/html` cho mọi input; path không hợp lệ → placeholder `<!--OG-->` được thay bằng chuỗi rỗng và các meta tĩnh của `dist/index.html` giữ nguyên (§5.4). Không trả JSON 422/404 từ `/share`. `/api/path` không đổi (C-12). Pha 2 được mở.
 - **Q-1 (v2.1):** thêm `GET /api/path` (§3.7), dùng chung `validate_path` với `/share` (§5.3).
 - **Q-4 (v2.1):** fetcher tuần tự, concurrency = 1, dưới 5 request/giây (§6.4), theo Robot policy của Wikimedia cho client Action API không xác thực.
