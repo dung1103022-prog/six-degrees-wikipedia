@@ -6,9 +6,9 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from app import paths
 from app.data import AppData
 from app.graph import shortest_path
-from app.paths import validate_path
 from app.resolver import resolve
 from app.schemas import (
     ErrorDetail,
@@ -99,7 +99,8 @@ def resolve_name(request: Request, q: str = Query()) -> ResolveResponse:
 @router.get("/path", response_model=PathResponse)
 def get_path(request: Request, p: list[str] = Query(default=[])) -> PathResponse:
     data = _data(request)
-    names = validate_path(p, data.edges)
+    # Module attribute, not a bound name: /share must share this exact function (PTH-11).
+    names = paths.validate_path(p, data.edges)
     if names is None:
         return PathResponse(valid=False, path=[])
     return PathResponse(valid=True, path=[_meta(data, n) for n in names])

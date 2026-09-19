@@ -122,15 +122,26 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         raise pytest.UsageError("\n".join(errors))
 
 
+#: Phases whose implementation is open (SPEC §0.3). Phase 2 opened in SPEC v2.4 (Q-2).
+OPEN_PHASES = (1, 2)
+
+
 def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
-    required = required_ids(1)
-    missing = sorted(required - _collected_ids)
-    terminalreporter.section("SPEC Phase 1 required test-ID coverage (SPEC §7.0)")
-    terminalreporter.write_line(f"required: {len(required)}, covered: {len(required & _collected_ids)}")
-    if missing:
-        terminalreporter.write_line("Missing Phase 1 required IDs: " + ", ".join(missing))
-    else:
-        terminalreporter.write_line("All required Phase 1 IDs have at least one test.")
+    terminalreporter.section("SPEC required test-ID coverage (SPEC §7.0)")
+    for phase in OPEN_PHASES:
+        required = required_ids(phase)
+        missing = sorted(required - _collected_ids)
+        terminalreporter.write_line(
+            f"Phase {phase}: required {len(required)}, covered {len(required & _collected_ids)}"
+        )
+        if missing:
+            terminalreporter.write_line(
+                f"  Missing Phase {phase} required IDs: " + ", ".join(missing)
+            )
+        else:
+            terminalreporter.write_line(
+                f"  All required Phase {phase} IDs have at least one test."
+            )
 
 
 # --------------------------------------------------------------------------- fixtures
