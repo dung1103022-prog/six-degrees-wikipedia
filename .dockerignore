@@ -1,0 +1,35 @@
+# Build context of the Dockerfile: only what the image needs (frontend sources, backend/app, the three
+# dataset files). Everything below is excluded to keep the context small and the build reproducible.
+
+# version control and local tooling
+.git
+.gitignore
+.claude
+
+# frontend: built inside the image, never copied from the host
+**/node_modules
+frontend/dist
+
+# backend: tests, the fetcher (not part of the image, SPEC 6.6), virtualenvs and caches
+backend/tests
+backend/fetcher.py
+backend/.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.egg-info
+
+# data: only graph.json, people.json and aliases.json go in (copied explicitly by the Dockerfile);
+# pilots, smoke data, seed lists and fetch logs stay out
+data-pilot*
+data-smoke
+data/*
+!data/graph.json
+!data/people.json
+!data/aliases.json
+
+# documents
+SPEC.md
+Dockerfile
+.dockerignore
