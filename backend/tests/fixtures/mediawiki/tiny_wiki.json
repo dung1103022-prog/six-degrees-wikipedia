@@ -1,0 +1,52 @@
+{
+  "_comment": "Hand-authored stand-in data for the MediaWiki Action API (no network in tests, SPEC 0.2). FakeWiki renders it as formatversion=2 responses.",
+  "en": {
+    "pages": {
+      "Albert Einstein": {
+        "pageid": 736,
+        "url": "https://en.wikipedia.org/wiki/Albert_Einstein",
+        "links": ["Bohr", "Isaac Newton", "Physics", "Albert Einstein"],
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Albert_Einstein_Head.jpg/200px-Albert_Einstein_Head.jpg",
+        "description": "German-born theoretical physicist (1879–1955)",
+        "langlinks": { "ja": "アインシュタイン" }
+      },
+      "Isaac Newton": {
+        "pageid": 17967,
+        "url": "https://en.wikipedia.org/wiki/Isaac_Newton",
+        "links": ["Albert Einstein", "Mathematics"],
+        "description": "English polymath (1643–1727)",
+        "langlinks": { "ja": "アイザック・ニュートン" }
+      },
+      "Niels Bohr": {
+        "pageid": 21609,
+        "url": "https://en.wikipedia.org/wiki/Niels_Bohr",
+        "links": ["Einstein", "Niels Bohr"],
+        "langlinks": { "ja": "ニールス・ボーア" }
+      },
+      "Marie Curie": {
+        "pageid": 20408,
+        "url": "https://en.wikipedia.org/wiki/Marie_Curie",
+        "links": ["Albert Einstein"],
+        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Marie_Curie_c1920.jpg/200px-Marie_Curie_c1920.jpg",
+        "description": "Polish-French physicist and chemist (1867–1934)"
+      }
+    },
+    "redirects": {
+      "A. Einstein": "Albert Einstein",
+      "Einstein": "Albert Einstein",
+      "Sir Isaac Newton": "Isaac Newton",
+      "Bohr": "Niels Bohr"
+    }
+  },
+  "ja": {
+    "pages": {
+      "アルベルト・アインシュタイン": { "pageid": 1001 },
+      "アイザック・ニュートン": { "pageid": 1002 }
+    },
+    "redirects": {
+      "アインシュタイン": "アルベルト・アインシュタイン",
+      "A・アインシュタイン": "アルベルト・アインシュタイン",
+      "ニュートン": "アイザック・ニュートン"
+    }
+  }
+}

@@ -12,6 +12,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Only fetcher.py (Phase 3, run by hand on the operator's machine) needs httpx; the production
+# runtime never calls Wikipedia (SPEC ADR-009), so it is not a runtime dependency.
+fetcher = [
+  "httpx==0.28.1",
+]
 test = [
   "pytest==9.1.1",
   "httpx==0.28.1",

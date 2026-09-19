@@ -122,8 +122,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         raise pytest.UsageError("\n".join(errors))
 
 
-#: Phases whose implementation is open (SPEC §0.3). Phase 2 opened in SPEC v2.4 (Q-2).
-OPEN_PHASES = (1, 2)
+#: Phases whose implementation is open (SPEC §0.3). Phase 2 opened in v2.4 (Q-2), Phase 3 in v2.9.
+OPEN_PHASES = (1, 2, 3)
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:

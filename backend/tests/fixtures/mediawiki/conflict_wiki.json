@@ -1,0 +1,30 @@
+{
+  "_comment": "Two English articles whose ja langlink is the same jawiki article (SPEC 6.4 step 5, FET-13).",
+  "en": {
+    "pages": {
+      "Foo (actor)": {
+        "pageid": 501,
+        "url": "https://en.wikipedia.org/wiki/Foo_(actor)",
+        "links": [],
+        "description": "Actor",
+        "langlinks": { "ja": "フー" }
+      },
+      "Foo (singer)": {
+        "pageid": 502,
+        "url": "https://en.wikipedia.org/wiki/Foo_(singer)",
+        "links": ["Foo (actor)"],
+        "description": "Singer",
+        "langlinks": { "ja": "フー" }
+      }
+    },
+    "redirects": {}
+  },
+  "ja": {
+    "pages": {
+      "フー": { "pageid": 2001 }
+    },
+    "redirects": {
+      "フー氏": "フー"
+    }
+  }
+}
