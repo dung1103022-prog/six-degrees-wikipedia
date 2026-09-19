@@ -5,8 +5,10 @@ import { useRef, useState, type FormEvent } from "react";
 import { searchPeople, type SearchFailure } from "../api/search";
 import type { ErrorDetail, PersonMeta, SearchResponse } from "../api/types";
 import GraphView from "../components/GraphView";
+import HistoryList from "../components/HistoryList";
 import PathList from "../components/PathList";
 import SearchFailureView from "../components/SearchFailureView";
+import { useHistory, type HistoryEntry } from "../lib/history";
 import { strings } from "../ui/strings";
 
 interface Query {
@@ -25,8 +27,9 @@ export default function SearchPage() {
   const [to, setTo] = useState("");
   const [view, setView] = useState<View>({ status: "idle" });
   const latest = useRef(0); // only the newest search may update the page
+  const { entries: history, add: remember } = useHistory();
 
-  async function run(query: Query): Promise<void> {
+  async function run(query: Query, record = true): Promise<void> {
     const id = ++latest.current;
     setView({ status: "loading", query });
     const outcome = await searchPeople(query.from, query.to);
@@ -36,6 +39,16 @@ export default function SearchPage() {
         ? { status: "done", query, response: outcome.response }
         : { status: "failed", query, failure: outcome.failure },
     );
+    // A search that got an answer (HTTP 200, a path or not) is history, under the canonical names of the
+    // answer and not the typed text; a failed one is not. Searching again from the history does not add the
+    // entry a second time. (What an entry holds and how repeats are treated: SPEC N-4, implementation's choice.)
+    if (outcome.ok && record) remember({ from: outcome.response.from, to: outcome.response.to });
+  }
+
+  function replay(entry: HistoryEntry): void {
+    setFrom(entry.from);
+    setTo(entry.to);
+    void run({ from: entry.from, to: entry.to }, false);
   }
 
   function submit(event: FormEvent): void {
@@ -66,6 +79,8 @@ export default function SearchPage() {
           {strings.search}
         </button>
       </form>
+
+      <HistoryList entries={history} onPick={replay} />
 
       <div aria-live="polite">{busy ? strings.searching : null}</div>
       {view.status === "failed" ? <SearchFailureView failure={view.failure} onChoose={choose} /> : null}
