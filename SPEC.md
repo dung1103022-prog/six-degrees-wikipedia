@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.5 (chế độ `/share` tường minh; chốt Q-3 = tiếng Việt; hợp đồng `og:url`, `index.html`, placeholder)
+**Version:** 2.6 (chốt `n` trong `og:title` = số cạnh; `DIST_DIR` là cấu hình runtime chính thức; ghi nhận nợ kỹ thuật của test harness trên Windows)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,15 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.6 — `n` trong `og:title`; `DIST_DIR`; nợ kỹ thuật của test harness
+
+Quyết định nguồn: chủ project, 2026-09-19 (sau khi implement Phase 2 adjustment của v2.5). Hai quyết định mới nhận số Q-9 và Q-10 (tiếp theo Q-8). Chỉ hai điểm này được chốt; mọi điểm khác giữ nguyên trạng thái. **Không thay đổi hành vi**: implementation hiện tại (`OG_TITLE_FORMAT.format(..., n=len(names) - 1)`; `create_app` chỉ đọc `DIST_DIR` khi `enable_share=True`) đã đúng với cả hai quyết định, nên không có thay đổi code hay test trong v2.6. Không mở pha 3/4.
+
+- **Q-9 (chốt) — `n` trong `og:title`:** `n` = số cạnh của path = `len(path) - 1` = `SearchResponse.length`; **không** phải số node. Ví dụ path `A → B → C` có `n = 2`. Format vẫn nằm trong một hằng số duy nhất (`OG_TITLE_FORMAT`). §5.4 và SHR-01 (§7.6) cập nhật.
+- **Q-10 (chốt) — `DIST_DIR`:** cấu hình runtime chính thức của server. Biến môi trường `DIST_DIR`, mặc định `./dist`. Chỉ được đọc khi `enable_share=True`; `DIST_DIR/index.html` là template runtime của `/share`. Khi `enable_share=False` không đọc `DIST_DIR` và không yêu cầu thư mục `dist/`. `DIST_DIR` là cấu hình của server, không thuộc dữ liệu (§6) hay contract của frontend. §0.3 và §5.5 cập nhật.
+- **§9:** thêm ghi chú kỹ thuật N-2 (nợ kỹ thuật riêng, không phải quyết định mở): guard chặn network của `backend/tests/conftest.py` chặn mọi kết nối không phải `AF_UNIX`, trong khi trên Windows asyncio dùng loopback TCP cho event loop nội bộ, nên `TestClient` không chạy được nếu không có shim ngoài repo. **Không sửa `conftest.py` hay network guard trong v2.6**; sẽ xử lý bằng một commit riêng sau này.
+- Không thay đổi `/api/*`, C-1..C-13, Q-1..Q-8, `validate_path`, danh sách test ID.
 
 ### v2.5 — Chế độ `/share` tường minh; chốt Q-3; hợp đồng `og:url`, `index.html`, placeholder
 
@@ -157,6 +166,7 @@ Bản đầu tiên.
   - **Chế độ Phase 2+:** `/share` được **bật**; đây là chế độ mặc định của app từ Phase 2. `dist/index.html` bắt buộc phải tồn tại và hợp lệ (§5.5); thiếu hoặc không hợp lệ → app **không khởi động** (fail fast, §6.5). Không được bỏ route `/share` một cách âm thầm.
   - Test của pha 1 phải tắt `/share` tường minh, để kết quả test không phụ thuộc vào môi trường của máy chạy test (thư mục làm việc, biến môi trường, có hay không có `dist/`).
   - Cấu hình bật/tắt là tham số tường minh `enable_share` của app factory (`create_app`): chế độ Phase 1 và test pha 1 dùng `enable_share=False`; mặc định `enable_share=True` (chế độ Phase 2+ / production). `enable_share` không bao giờ được suy ra từ việc `dist/index.html` có tồn tại hay không. Khi `enable_share=False`: không kiểm tra `dist/` và `/share` không được đăng ký. Đây không phải contract HTTP.
+  - **`DIST_DIR`** *(v2.6, Q-10)*: cấu hình runtime của server cho vị trí thư mục `dist/`; biến môi trường `DIST_DIR`, mặc định `./dist`. Chỉ được đọc khi `enable_share=True`. Khi `enable_share=False` không đọc `DIST_DIR` và không yêu cầu có thư mục `dist/`. Xem §5.5.
 - Không implement tính năng ngoài spec: không database, cache (kể cả cache in-process cho resolver), auth, WebSocket, task queue, image generation, runtime Wikipedia fallback, autocomplete.
 - Chính sách sử dụng Wikimedia API phải được đối chiếu với tài liệu hiện hành khi bắt đầu pha 3.
 
@@ -192,6 +202,8 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-6 | `og:url` dùng base URL của request hiện tại (scheme, host, `root_path` nếu có) + path `/share` và query dựng lại từ tên đã validate; không có `PUBLIC_BASE_URL` | §5.4, §8 | Đã chốt (v2.5) |
 | Q-7 | `index.html` không chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card`; năm property này chỉ do `/share` tạo tại placeholder | §5.4, §5.5 | Đã chốt (v2.5) |
 | Q-8 | `<!--OG-->` đúng một lần và nằm trong `<head>`; vi phạm → fail fast khi `/share` được bật | §5.5, §6.5 | Đã chốt (v2.5) |
+| Q-9 | `n` trong `og:title` = số cạnh của path = `len(path) - 1` = `SearchResponse.length` (không phải số node); ví dụ `A → B → C` có `n = 2` | §5.4, §7.6 | Đã chốt (v2.6) |
+| Q-10 | `DIST_DIR` là cấu hình runtime chính thức (env var, mặc định `./dist`); chỉ đọc khi `enable_share=True`; `DIST_DIR/index.html` là template của `/share`; không thuộc dữ liệu hay contract frontend | §0.3, §5.5 | Đã chốt (v2.6) |
 
 Các điểm C-3, C-4, C-7, C-8 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-6, C-9 thuộc pha 3. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
@@ -611,7 +623,7 @@ Path hợp lệ khi và chỉ khi:
 - Body là nội dung `dist/index.html` với placeholder `<!--OG-->` trong `<head>` được thay thế; phần còn lại của file giữ nguyên.
 - Phán quyết hợp lệ/không hợp lệ đến **duy nhất** từ `validate_path` (§5.3); `/share` không tự validate.
 - **Path hợp lệ** (`validate_path` trả danh sách tên) — placeholder được thay bằng các meta tag:
-  - `og:title` = `"{first} → {last}: {n} bước"` (format đặt trong một hằng số duy nhất; ngôn ngữ là tiếng Việt theo Q-3, đã chốt ở v2.5);
+  - `og:title` = `"{first} → {last}: {n} bước"` (format đặt trong một hằng số duy nhất; ngôn ngữ là tiếng Việt theo Q-3, đã chốt ở v2.5). *(v2.6, Q-9)* `n` = số cạnh của path = `len(path) - 1` = `SearchResponse.length`, **không** phải số node; ví dụ path `A → B → C` có `n = 2`, nên `og:title` là `"A → C: 2 bước"`;
   - `og:description` = các tên trên path nối bằng `" → "`;
   - `og:image` = thumbnail của người đầu tiên; **bỏ hẳn tag** nếu thumbnail là `None`;
   - `og:url` = URL share **dựng lại từ các tên đã validate** bằng `urlencode(..., doseq=True)`, không echo lại chuỗi query thô. *(v2.5, Q-6)* `og:url` sử dụng base URL của request hiện tại, gồm scheme, host và `root_path` nếu request có; path `/share` và query được dựng lại từ canonical name đã validate. Không có biến cấu hình `PUBLIC_BASE_URL` ở phiên bản này;
@@ -622,7 +634,8 @@ Path hợp lệ khi và chỉ khi:
 - Frontend tại `/share` hiển thị thông báo "link không còn hợp lệ" theo §5.6; backend không sinh thông báo lỗi trong HTML.
 - Mọi giá trị chèn vào HTML phải qua `html.escape(value, quote=True)`. URL encoding không phải là cơ chế bảo vệ HTML.
 
-### 5.5 Placeholder và `dist/index.html` *(viết lại ở v2.5)*
+### 5.5 Placeholder và `dist/index.html` *(viết lại ở v2.5; `DIST_DIR` ở v2.6)*
+- **`DIST_DIR`** *(v2.6, Q-10)*: biến môi trường của server, mặc định `./dist`; `DIST_DIR/index.html` là template runtime của `/share`. Chỉ được đọc khi `enable_share=True` (§0.3); khi `enable_share=False` không đọc `DIST_DIR` và không yêu cầu có thư mục `dist/`. Đây là cấu hình của server, không phải dữ liệu (§6) và không thuộc contract của frontend.
 - `frontend/index.html` và bản build `dist/index.html` phải chứa **đúng một** `<!--OG-->`, nằm **trong `<head>`** (Q-8).
 - Vị trí placeholder là chỗ **duy nhất** server chèn OG meta. Các file này **không** được chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` (Q-7). Đây là yêu cầu đối với frontend, kiểm tra bởi FE-05; server không kiểm tra lúc khởi động.
 - Khi `/share` được bật (§0.3, Q-5), server kiểm tra lúc khởi động và **fail fast** (app không khởi động) nếu:
@@ -904,7 +917,7 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 ### 7.6 Share
 | ID | Request | Kỳ vọng |
 |---|---|---|
-| SHR-01 | path hợp lệ | 200 `text/html`; HTML chứa `og:title`, `og:description`, `og:url` đúng; không còn `<!--OG-->` |
+| SHR-01 | path hợp lệ | 200 `text/html`; HTML chứa `og:title`, `og:description`, `og:url` đúng; không còn `<!--OG-->`. *(v2.6, Q-9)* `n` trong `og:title` là số cạnh (`len(path) - 1`): path `A → E → D` cho `og:title` = `"A → D: 2 bước"` |
 | SHR-02 | người đầu không có thumbnail | không có tag `og:image` |
 | SHR-03 | cạnh không tồn tại (path bị sửa) | *(v2.4)* 200 `text/html`; placeholder thay bằng chuỗi rỗng → không còn `<!--OG-->`, không có `og:title`/`og:description`/`og:image`/`og:url` do server sinh; meta tĩnh của `dist/index.html` vẫn còn nguyên |
 | SHR-04 | tên không tồn tại | *(v2.4)* như SHR-03 |
@@ -1017,7 +1030,11 @@ Hiện không còn câu hỏi mở. *(v2.5: Q-3 đã chốt.)*
 Không phải quyết định mở; không ảnh hưởng pha 1.
 - **N-1:** với các version đã pin (`fastapi==0.141.1`, `starlette==1.6.0`, `httpx==0.28.1`), `fastapi.testclient.TestClient` phát `StarletteDeprecationWarning` về việc dùng `httpx` cho Starlette test client. Pha 1 **không** thay đổi dependency vì cảnh báo này. Review riêng khi nâng dependency hoặc trước khi mở pha 3 (fetcher dùng `httpx`).
 
+- **N-2 (v2.6):** guard chặn network của `backend/tests/conftest.py` chặn mọi kết nối không phải `AF_UNIX`. Trên Windows, asyncio dùng loopback TCP cho event loop nội bộ (self-pipe qua `socketpair()`), nên `TestClient` không khởi động được và test fail ngay từ đầu; chỉ chạy được khi có shim cho phép loopback đặt ngoài repo. Nợ kỹ thuật riêng, sẽ xử lý bằng một commit riêng sau này (giữ nguyên yêu cầu §0.2: mọi kết nối ra ngoài phải làm test fail). **Không sửa `conftest.py` hay network guard trong v2.6.**
+
 ### Đã chốt
+- **Q-9 (v2.6):** `n` trong `og:title` = số cạnh của path = `len(path) - 1` = `SearchResponse.length` (§5.4).
+- **Q-10 (v2.6):** `DIST_DIR` là cấu hình runtime chính thức, mặc định `./dist`, chỉ đọc khi `enable_share=True` (§0.3, §5.5).
 - **Q-3 (v2.5):** ngôn ngữ của `og:title` / UI ở phiên bản hiện tại là tiếng Việt; format giữ trong một hằng số duy nhất (§5.4).
 - **Q-5 (v2.5):** chế độ `/share` tường minh; Phase 2+ bắt buộc có `dist/index.html`, thiếu → fail fast (§0.3, §5.5, §6.5).
 - **Q-6 (v2.5):** `og:url` dùng base URL của request hiện tại (scheme, host, `root_path` nếu có), không có `PUBLIC_BASE_URL` (§5.4).
