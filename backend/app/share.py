@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import html
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from urllib.parse import urlencode
@@ -28,20 +29,43 @@ SHARE_PATH = "/share"
 router = APIRouter()
 
 
+#: SPEC §5.5 (Q-8): "inside <head>" is a string-position check between the opening
+#: <head ...> tag and the closing </head> tag; tag names are case-insensitive and no
+#: full HTML parser is used. ``<header>`` is not ``<head>``.
+_HEAD_OPEN = re.compile(r"<head(?:\s[^>]*)?>", re.IGNORECASE)
+_HEAD_CLOSE = re.compile(r"</head>", re.IGNORECASE)
+
+
+def _placeholder_in_head(text: str) -> bool:
+    opening = _HEAD_OPEN.search(text)
+    if opening is None:
+        return False
+    closing = _HEAD_CLOSE.search(text, opening.end())
+    if closing is None:
+        return False
+    return opening.end() <= text.index(OG_PLACEHOLDER) < closing.start()
+
+
 def load_index_template(dist_dir: Path | str) -> str:
     """Read dist/index.html and check the <!--OG--> placeholder (SPEC §5.5, §6.5).
 
-    Called only when /share is registered (Phase 2), never by the Phase 1 loader.
+    Called only when /share is enabled (``enable_share=True``), never by the Phase 1
+    loader. Fails fast (``DataValidationError``, naming the file) when the file is missing,
+    the placeholder occurs other than exactly once, or it is not inside ``<head>``.
     """
     path = Path(dist_dir) / "index.html"
     try:
         text = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         raise DataValidationError(f"[OG] missing {path}") from None
     count = text.count(OG_PLACEHOLDER)
     if count != 1:
         raise DataValidationError(
             f"[OG] {path} must contain exactly one {OG_PLACEHOLDER} placeholder (found {count})"
+        )
+    if not _placeholder_in_head(text):
+        raise DataValidationError(
+            f"[OG] {path}: the {OG_PLACEHOLDER} placeholder must be inside <head>"
         )
     return text
 

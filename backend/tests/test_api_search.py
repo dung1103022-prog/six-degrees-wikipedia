@@ -18,7 +18,7 @@ ALIASES = load_fixture_aliases()
 
 @pytest.fixture(scope="module")
 def client():
-    return TestClient(create_app(VALID_DIR))
+    return TestClient(create_app(VALID_DIR, enable_share=False))
 
 
 def search(client, frm, to):

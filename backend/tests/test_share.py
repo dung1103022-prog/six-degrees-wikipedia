@@ -1,8 +1,13 @@
-"""SPEC §5.4, §5.5 / §7.6, §7.6A, §7.7 — GET /share (Phase 2: SHR-01..13, PTH-11, DAT-08).
+"""SPEC §5.4, §5.5 / §7.6, §7.6A, §7.7 — GET /share
+(Phase 2: SHR-01..14, PTH-11, DAT-08, DAT-17, DAT-18).
 
 Q-2 (chốt ở v2.4): /share luôn trả 200 text/html. Path hợp lệ -> <!--OG--> được thay
 bằng OG meta dựng từ canonical path đã validate; path không hợp lệ -> <!--OG--> được
 thay bằng chuỗi rỗng và các meta tĩnh của dist/index.html giữ nguyên.
+
+v2.5: /share is switched by the explicit ``enable_share`` parameter (default True), never
+by whether dist/index.html exists (Q-5); og:url uses the request base URL (Q-6); the
+placeholder must occur exactly once, inside <head> (Q-8).
 """
 from __future__ import annotations
 
@@ -190,6 +195,24 @@ def test_og_url_is_rebuilt_and_drops_foreign_params(client):
     assert "utm_source" not in url and "p2" not in url
 
 
+@pytest.mark.spec("SHR-14")
+@pytest.mark.parametrize(
+    "base_url, root_path, expected_prefix",
+    [
+        ("http://one.test", "", "http://one.test/share?"),
+        ("https://two.test:8443", "", "https://two.test:8443/share?"),
+        ("http://one.test", "/sub", "http://one.test/sub/share?"),
+    ],
+)
+def test_og_url_uses_request_base_url(base_url, root_path, expected_prefix):
+    app = create_app(VALID_DIR, dist_dir=DIST)
+    with TestClient(app, base_url=base_url, root_path=root_path) as c:
+        text = share(c, ["A", "E", "D"])
+    url = meta_content(text, "og:url")
+    assert url.startswith(expected_prefix), url
+    assert parse_qs(urlparse(url).query) == {"p": ["A", "E", "D"]}
+
+
 # --------------------------------------------------------------------- SHR-11..12
 
 
@@ -260,18 +283,112 @@ def test_share_and_api_path_share_one_verdict(client, monkeypatch):
 
 # ------------------------------------------------------------------------ DAT-08
 
+GOOD_HTML = (DIST / "index.html").read_text(encoding="utf-8")
+assert GOOD_HTML.count(PLACEHOLDER) == 1  # fixture sanity: one placeholder, inside <head>
 
-@pytest.mark.spec("DAT-08")
-def test_index_html_without_placeholder_fails_startup(tmp_path: Path):
+
+def _without_placeholder() -> str:
+    return GOOD_HTML.replace(PLACEHOLDER, "")
+
+
+def _write_dist(tmp_path: Path, html: str) -> Path:
     dist = tmp_path / "dist"
     dist.mkdir()
-    good = (DIST / "index.html").read_text(encoding="utf-8")
-    (dist / "index.html").write_text(good.replace(PLACEHOLDER, ""), encoding="utf-8")
+    (dist / "index.html").write_text(html, encoding="utf-8")
+    return dist
+
+
+#: SPEC §5.5 (Q-8): missing, duplicate, or outside <head> -> the app must not start.
+INVALID_INDEX_HTML = {
+    # missing
+    "missing": _without_placeholder(),
+    # duplicate
+    "duplicate both in head": GOOD_HTML.replace(PLACEHOLDER, PLACEHOLDER * 2),
+    "duplicate one in body": GOOD_HTML.replace("</body>", PLACEHOLDER + "</body>"),
+    # outside <head>
+    "in body": _without_placeholder().replace("</body>", PLACEHOLDER + "</body>"),
+    "after </head>": _without_placeholder().replace("</head>", "</head>" + PLACEHOLDER),
+    "before <head>": _without_placeholder().replace("<head>", PLACEHOLDER + "<head>"),
+    "no closing </head>": _without_placeholder().replace("</head>", "").replace(
+        "<title>", PLACEHOLDER + "<title>"
+    ),
+    "no <head> element at all": f"<!doctype html><html><body>{PLACEHOLDER}</body></html>",
+    # <header> is not <head>
+    "only a <header> element": f"<html><header>{PLACEHOLDER}</header><body></body></html>",
+}
+
+
+@pytest.mark.spec("DAT-08")
+@pytest.mark.parametrize("html", INVALID_INDEX_HTML.values(), ids=INVALID_INDEX_HTML.keys())
+def test_invalid_placeholder_fails_startup(tmp_path: Path, html: str):
+    dist = _write_dist(tmp_path, html)
     with pytest.raises(DataValidationError) as exc:
         create_app(VALID_DIR, dist_dir=dist)
-    assert "OG" in str(exc.value)
+    message = str(exc.value)
+    assert "OG" in message
+    assert str(dist / "index.html") in message  # SPEC §5.5: the error names the file
 
-    # More than one placeholder is equally invalid (SPEC §5.5: exactly one).
-    (dist / "index.html").write_text(good + PLACEHOLDER, encoding="utf-8")
-    with pytest.raises(DataValidationError):
+
+@pytest.mark.spec("DAT-08")
+def test_head_detection_ignores_tag_case_and_accepts_attributes(tmp_path: Path):
+    html = GOOD_HTML.replace("<head>", '<HEAD lang="en" data-x="1">').replace("</head>", "</HEAD>")
+    assert "<HEAD" in html and "</HEAD>" in html  # fixture sanity
+    dist = _write_dist(tmp_path, html)
+    with TestClient(create_app(VALID_DIR, dist_dir=dist)) as c:
+        text = share(c, ["A", "E", "D"])
+    assert meta_content(text, "og:title") == "A → D: 2 bước"
+
+
+# ------------------------------------------------------------------------ DAT-17
+
+
+@pytest.mark.spec("DAT-17")
+@pytest.mark.parametrize("dist_state", ["directory missing", "directory without index.html"])
+def test_share_enabled_without_index_html_fails_startup(tmp_path: Path, dist_state: str):
+    dist = tmp_path / "dist"
+    if dist_state == "directory without index.html":
+        dist.mkdir()
+    with pytest.raises(DataValidationError) as exc:  # enable_share defaults to True
         create_app(VALID_DIR, dist_dir=dist)
+    assert str(dist / "index.html") in str(exc.value)
+
+
+@pytest.mark.spec("DAT-17")
+def test_share_enabled_by_default_fails_fast_via_env_and_default_dir(tmp_path: Path, monkeypatch):
+    # DIST_DIR pointing nowhere.
+    monkeypatch.setenv("DIST_DIR", str(tmp_path / "nowhere"))
+    with pytest.raises(DataValidationError):
+        create_app(VALID_DIR)
+    # No DIST_DIR: the default ./dist of the working directory is missing.
+    monkeypatch.delenv("DIST_DIR")
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(DataValidationError):
+        create_app(VALID_DIR)
+
+
+# ------------------------------------------------------------------------ DAT-18
+
+
+@pytest.mark.spec("DAT-18")
+def test_share_disabled_needs_no_dist_and_registers_no_route(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # no ./dist here
+    monkeypatch.delenv("DIST_DIR", raising=False)
+    c = TestClient(create_app(VALID_DIR, enable_share=False))
+    assert c.get("/api/people").status_code == 200
+    assert c.get("/share").status_code == 404
+    assert c.get("/share?p=A&p=E&p=D").status_code == 404
+    assert "/share" not in c.get("/openapi.json").json()["paths"]
+
+
+@pytest.mark.spec("DAT-18")
+def test_share_disabled_is_not_inferred_from_dist_existing(tmp_path: Path, monkeypatch):
+    # A perfectly valid dist/index.html exists, yet enable_share=False registers no route.
+    monkeypatch.setenv("DIST_DIR", str(DIST))
+    c = TestClient(create_app(VALID_DIR, enable_share=False))
+    assert c.get("/share?p=A&p=E&p=D").status_code == 404
+
+    # An invalid dist/index.html is not even looked at.
+    bad = _write_dist(tmp_path, _without_placeholder())
+    c = TestClient(create_app(VALID_DIR, dist_dir=bad, enable_share=False))
+    assert c.get("/api/people").status_code == 200
+    assert c.get("/share").status_code == 404
