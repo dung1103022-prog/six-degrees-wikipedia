@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 .venv/
 dist/
+# ...but the Phase 2 test fixture is not a build artifact (SPEC §7.6, DAT-08).
+!backend/tests/fixtures/dist/
