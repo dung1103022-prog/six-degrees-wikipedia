@@ -18,6 +18,7 @@ import pytest
 
 import fetcher
 from app.data import DataValidationError, load_data
+from app.resolver import AliasEntry
 from conftest import VALID_DIR
 from fakewiki import FakeClock, FakeWiki, load_wiki
 
@@ -64,7 +65,7 @@ def make_env(
     min_interval: float | None = None,  # None: the fetcher's own default (C-10)
 ) -> SimpleNamespace:
     data_dir = tmp_path / "data"
-    data_dir.mkdir()
+    data_dir.mkdir(parents=True)
     if seeds is not None:
         (data_dir / "seed_names.txt").write_text("\n".join(seeds) + "\n", encoding="utf-8")
     clock = FakeClock()
@@ -146,6 +147,56 @@ def test_output_satisfies_section_6_5_invariants(tmp_path):
     raw = (env.data_dir / "aliases.json").read_text(encoding="utf-8")
     assert "アルベルト・アインシュタイン" in raw and "\\u" not in raw
     assert env.wiki.violations == []
+
+
+@pytest.mark.spec("FET-07")
+def test_aliases_are_written_sorted_by_alias_target_source(tmp_path):
+    env = make_env(tmp_path)
+    env.run()
+    written = json.loads((env.data_dir / "aliases.json").read_text(encoding="utf-8"))
+    keys = [(a["alias"], a["target"], a["source"]) for a in written]
+    assert len(keys) > 5 and keys == sorted(keys)  # A-7 (C-14), in file order, not as a set
+    load_data(env.data_dir)  # and the loader's A-7 check accepts it
+
+
+@pytest.mark.spec("FET-07")
+def test_build_aliases_sorts_by_the_whole_alias_target_source_triple():
+    # Many entries that tie on the alias alone, in an order that is not the sorted one: only the
+    # full (alias, target, source) key gives the order the SPEC asks for (C-14, A-7).
+    targets = [f"Person {n}" for n in range(9, 0, -1)]
+    redirects = {target: ["Same"] for target in targets}
+    ja = [AliasEntry("Same", target, "ja_redirect") for target in targets]
+    ja += [AliasEntry("Same", target, "ja_title") for target in targets]
+    entries, dropped = fetcher.build_aliases(redirects, ja)
+    keys = [(e.alias, e.target, e.source) for e in entries]
+    assert dropped == 0 and len(keys) == 27
+    assert keys == sorted(keys)
+    assert keys[:3] == [
+        ("Same", "Person 1", "en_redirect"),
+        ("Same", "Person 1", "ja_redirect"),
+        ("Same", "Person 1", "ja_title"),
+    ]
+
+
+@pytest.mark.spec("FET-07")
+@pytest.mark.parametrize("variant", ["page_size_1", "page_size_2", "seeds_reversed", "conflict_wiki"])
+def test_output_is_byte_for_byte_stable(tmp_path, variant):
+    """C-14: the same API data gives the same bytes, whatever the paging or the seed order."""
+    if variant == "conflict_wiki":
+        seeds = ["Foo (actor)", "Foo (singer)"]
+        first = make_env(tmp_path / "a", wiki_name="conflict_wiki", seeds=seeds)
+        second = make_env(tmp_path / "b", wiki_name="conflict_wiki", seeds=list(reversed(seeds)), page_size=1)
+    else:
+        first = make_env(tmp_path / "a")
+        second = make_env(
+            tmp_path / "b",
+            page_size={"page_size_1": 1, "page_size_2": 2}.get(variant, 0),
+            seeds=list(reversed(SEEDS)) if variant == "seeds_reversed" else SEEDS,
+        )
+    first.run()
+    second.run()
+    assert snapshot(first.data_dir) == snapshot(second.data_dir)
+    assert set(snapshot(first.data_dir)) == set(FILES)
 
 
 @pytest.mark.spec("FET-07")
@@ -275,7 +326,7 @@ def test_pages_without_image_or_description_get_null(tmp_path):
     }
     assert people["Isaac Newton"]["thumbnail"] is None
     assert people["Isaac Newton"]["description"] == "English polymath (1643–1727)"
-    assert people["Albert Einstein"]["thumbnail"].startswith("https://upload.wikimedia.org/")
+    assert people["Albert Einstein"]["thumbnail"] == load_wiki("tiny_wiki")["en"]["pages"]["Albert Einstein"]["thumbnail"]
     metadata = [r for r in env.wiki.requests if r.params.get("prop") == "pageimages|info|description|langlinks"]
     assert metadata
     assert all(
@@ -372,6 +423,94 @@ def test_two_targets_with_the_same_ja_title_keep_the_conflict(tmp_path):
         ("フー氏", "Foo (actor)", "ja_redirect"),
         ("フー氏", "Foo (singer)", "ja_redirect"),
     }
+
+
+@pytest.mark.spec("FET-05")
+def test_thumbnail_url_is_written_exactly_as_the_api_returned_it(tmp_path):
+    # Q-11 (v2.12): no stripping of utm_* and no rewriting of the size, although 200 was requested.
+    env = make_env(tmp_path)
+    env.run()
+    thumbnail = read_out(env.data_dir)[1]["Albert Einstein"]["thumbnail"]
+    assert thumbnail == load_wiki("tiny_wiki")["en"]["pages"]["Albert Einstein"]["thumbnail"]
+    assert "utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail" in thumbnail
+    assert "/250px-" in thumbnail
+    raw = (env.data_dir / "people.json").read_text(encoding="utf-8")
+    assert "&utm_campaign=api" in raw  # neither HTML-escaped nor percent-encoded in the file
+
+
+@pytest.mark.spec("FET-20")
+def test_alias_equal_to_target_is_dropped_from_the_output(tmp_path):
+    # C-8 (v2.12): jawiki has a redirect named "Albert Einstein" to Einstein's article.
+    env = make_env(tmp_path)
+    env.run()
+    graph, people, aliases = read_out(env.data_dir)
+    assert not [a for a in aliases if a[0] == a[1]]
+    assert ("Albert Einstein", "Albert Einstein", "ja_redirect") not in aliases
+    assert aliases >= EXPECTED_ALIASES  # everything else about Einstein is still there
+    assert set(graph) == set(EXPECTED_GRAPH) and set(people) == set(graph)  # identity unchanged
+    load_data(env.data_dir)
+
+
+@pytest.mark.spec("FET-20")
+def test_build_aliases_drops_only_exact_matches_after_nfc():
+    nfc_name = "Beyoncé"
+    nfd_name = unicodedata.normalize("NFD", nfc_name)
+    redirects = {
+        "Foo": ["Foo", "foo", "Foo  Bar", "F. Foo"],  # only the first is exactly the target
+        nfc_name: [nfd_name, "Queen Bey"],  # the same name in another normalisation form
+    }
+    ja = [AliasEntry("Foo", "Foo", "ja_title"), AliasEntry("フー", "Foo", "ja_title")]
+    entries, dropped = fetcher.build_aliases(redirects, ja)
+    assert dropped == 3
+    assert {(e.alias, e.target, e.source) for e in entries} == {
+        ("foo", "Foo", "en_redirect"),
+        ("Foo  Bar", "Foo", "en_redirect"),
+        ("F. Foo", "Foo", "en_redirect"),
+        ("Queen Bey", nfc_name, "en_redirect"),
+        ("フー", "Foo", "ja_title"),
+    }
+    keys = [(e.alias, e.target, e.source) for e in entries]
+    assert keys == sorted(keys)
+
+
+# ------------------------------------------------------------------ pilot measurements
+
+
+def test_run_reports_what_a_pilot_needs_to_measure(tmp_path):
+    env = make_env(tmp_path, page_size=1)
+    env.wiki.scripted = [respond(503)]  # one retry
+    started = env.clock.now
+    stats = env.run()
+    sizes = {name: (env.data_dir / name).stat().st_size for name in FILES}
+
+    assert stats.people == len(EXPECTED_GRAPH)
+    assert stats.links == sum(len(adj) for adj in EXPECTED_GRAPH.values())
+    tiny = load_wiki("tiny_wiki")["en"]["pages"]
+    assert stats.raw_links == sum(len(page.get("links", [])) for page in tiny.values())  # before filtering
+    assert stats.aliases == len(EXPECTED_ALIASES)
+    assert stats.aliases_dropped_as_self == 1
+    assert stats.requests == len(env.wiki.requests) and stats.retries == 1
+    assert set(stats.requests_by_step) == {1, 2, 3, 4, 5}
+    assert sum(stats.requests_by_step.values()) == stats.requests
+    assert stats.file_bytes == sizes and stats.total_bytes == sum(sizes.values())
+    assert stats.seconds == pytest.approx(env.clock.now - started)
+    assert set(stats.seconds_by_step) == {1, 2, 3, 4, 5}
+    assert sum(stats.seconds_by_step.values()) == pytest.approx(stats.seconds)
+
+
+def test_summary_is_logged_with_per_person_figures(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="fetcher")
+    env = make_env(tmp_path)
+    code = fetcher.main(
+        ["--data-dir", str(env.data_dir)],
+        environ={"WIKI_UA_CONTACT": CONTACT},
+        transport=env.wiki.transport(),
+        clock=env.clock,
+    )
+    assert code == 0
+    text = caplog.text
+    for needle in ("requests", "raw links", "aliases per person", "graph.json", "people.json", "aliases.json", "total", "seconds"):
+        assert needle in text, needle
 
 
 # -------------------------------------------------------- errors, retry, request policy

@@ -179,6 +179,31 @@ def test_hostile_names_are_escaped(tmp_path: Path):
     assert meta_content(text, "og:description") == f"{hostile} → Z"
 
 
+@pytest.mark.spec("SHR-08")
+def test_thumbnail_url_is_kept_verbatim_and_only_html_escaped(tmp_path: Path):
+    # Q-11 (v2.12): MediaWiki thumbnail URLs carry utm_* query parameters; they are stored and
+    # served as they are, and only html.escape touches them in og:image.
+    url = (
+        "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/28/Albert_Einstein_Head_cleaned.jpg/"
+        "250px-Albert_Einstein_Head_cleaned.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+    )
+    graph = {"P": ["Q"], "Q": []}
+    people = {
+        "P": {"thumbnail": url, "wiki_url": "https://en.wikipedia.org/wiki/P", "description": None},
+        "Q": {"thumbnail": None, "wiki_url": "https://en.wikipedia.org/wiki/Q", "description": None},
+    }
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "graph.json").write_text(json.dumps(graph), encoding="utf-8")
+    (data / "people.json").write_text(json.dumps(people), encoding="utf-8")
+    (data / "aliases.json").write_text("[]", encoding="utf-8")
+
+    with TestClient(create_app(data, dist_dir=DIST)) as c:
+        text = share(c, ["P", "Q"])
+    assert meta_content(text, "og:image") == url  # decodes back to exactly what the API returned
+    assert "utm_source=en.wikipedia.org&amp;utm_campaign=api&amp;utm_content=thumbnail" in text
+
+
 @pytest.mark.spec("SHR-09")
 def test_special_characters_round_trip(client):
     text = share(client, CHAIN)

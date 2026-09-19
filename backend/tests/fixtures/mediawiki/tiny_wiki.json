@@ -6,7 +6,7 @@
         "pageid": 736,
         "url": "https://en.wikipedia.org/wiki/Albert_Einstein",
         "links": ["Bohr", "Isaac Newton", "Physics", "Albert Einstein"],
-        "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Albert_Einstein_Head.jpg/200px-Albert_Einstein_Head.jpg",
+        "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/28/Albert_Einstein_Head_cleaned.jpg/250px-Albert_Einstein_Head_cleaned.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
         "description": "German-born theoretical physicist (1879–1955)",
         "langlinks": { "ja": "アインシュタイン" }
       },
@@ -46,6 +46,7 @@
     "redirects": {
       "アインシュタイン": "アルベルト・アインシュタイン",
       "A・アインシュタイン": "アルベルト・アインシュタイン",
+      "Albert Einstein": "アルベルト・アインシュタイン",
       "ニュートン": "アイザック・ニュートン"
     }
   }

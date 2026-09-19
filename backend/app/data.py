@@ -1,7 +1,8 @@
 """Data loading and startup validation (SPEC §6, §6.5).
 
-Phase 1 scope: G-1..G-5, P-1..P-3, A-1..A-4, NFC.
-Not implemented (decision status "Chưa duyệt" in SPEC §0.4): G-6, A-6 (C-7), A-5, A-7 (C-8).
+Phase 1 scope: G-1..G-5, P-1..P-3, A-1..A-4, NFC, and A-7 (aliases.json sorted, C-14, SPEC v2.12).
+Not implemented (decision status "Chưa duyệt" in SPEC §0.4): G-6, A-6 (C-7).
+A-5 no longer exists: an alias equal to its target is not a data error (C-8, SPEC v2.12).
 The <!--OG--> placeholder check belongs to Phase 2 (SPEC §6.5).
 """
 from __future__ import annotations
@@ -123,6 +124,14 @@ def _validate_aliases(raw, graph: Mapping[str, tuple[str, ...]]) -> list[AliasEn
     duplicates = [e for e, n in Counter(entries).items() if n > 1]
     if duplicates:
         _fail("A-4", f"duplicate alias entries: {duplicates[:3]}")
+    keys = [(e.alias, e.target, e.source) for e in entries]
+    for i in range(1, len(keys)):
+        if keys[i - 1] > keys[i]:
+            _fail(
+                "A-7",
+                f"aliases.json is not sorted by (alias, target, source): "
+                f"entry {i} {keys[i]!r} comes after {keys[i - 1]!r}",
+            )
     return entries
 
 

@@ -5,3 +5,11 @@ __pycache__/
 dist/
 # ...but the Phase 2 test fixture is not a build artifact (SPEC §7.6, DAT-08).
 !backend/tests/fixtures/dist/
+
+# Local experiments and tool leftovers, never part of the dataset. data/ is NOT ignored: it is
+# the dataset itself and is committed (SPEC §6).
+data-smoke/
+data-pilot/
+*.egg-info/
+# Staging directories of an interrupted fetcher run (SPEC §6.4, C-9); normally removed at the end.
+.fetch-staging-*/

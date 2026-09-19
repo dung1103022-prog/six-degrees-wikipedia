@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from app.data import DataValidationError, load_data
+from app.resolver import resolve
 from conftest import VALID_DIR
 
 
@@ -142,11 +143,56 @@ def test_alias_invalid_source(data_dir):
 
 @pytest.mark.spec("DAT-14")
 def test_alias_exact_duplicate(data_dir):
-    # Only the A-4 half of DAT-14. The A-5 half (alias == target) is C-8, not yet approved.
+    # The A-4 half of DAT-14. alias == target is not an error (C-8, v2.12), see below.
     a = read(data_dir, "aliases.json")
     a.append(dict(a[0]))
     write(data_dir, "aliases.json", a)
     expect_fail(data_dir, "A-4")
+
+
+@pytest.mark.spec("DAT-14")
+def test_alias_equal_to_target_is_not_an_error(data_dir):
+    # C-8 (v2.12): `alias == target` is not a data error, so the loader accepts it; A-5 is gone.
+    aliases = read(data_dir, "aliases.json")
+    target = aliases[0]["target"]
+    aliases.append({"alias": target, "target": target, "source": "ja_redirect"})
+    aliases.sort(key=lambda e: (e["alias"], e["target"], e["source"]))  # A-7 (C-14): keep it sorted
+    write(data_dir, "aliases.json", aliases)
+    data = load_data(data_dir)
+    # the exact canonical name still wins (SPEC 4A.3, step 1): the canonical identity is unchanged
+    result = resolve(data.resolver, target)
+    assert (result.status, result.name) == ("resolved", target)
+
+
+@pytest.mark.spec("DAT-15")
+def test_reversed_aliases_fail_a7(data_dir):
+    # A-7 (C-14, v2.12): aliases.json is sorted by (alias, target, source); the loader checks it.
+    aliases = read(data_dir, "aliases.json")
+    aliases.reverse()
+    write(data_dir, "aliases.json", aliases)
+    expect_fail(data_dir, "A-7")
+
+
+@pytest.mark.spec("DAT-15")
+def test_any_adjacent_swap_fails_a7(data_dir):
+    # The sort key is the whole (alias, target, source) triple: swapping any two neighbours, e.g. the
+    # two targets of a conflicting alias or two sources of one alias, breaks the order.
+    original = read(data_dir, "aliases.json")
+    keys = [(e["alias"], e["target"], e["source"]) for e in original]
+    assert keys == sorted(keys) and len(set(keys)) == len(keys)  # fixture sanity
+    for i in range(len(original) - 1):
+        swapped = list(original)
+        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+        write(data_dir, "aliases.json", swapped)
+        expect_fail(data_dir, "A-7")
+
+
+@pytest.mark.spec("DAT-15")
+def test_sorted_aliases_load_and_an_empty_array_is_sorted(data_dir):
+    data = load_data(data_dir)
+    assert data is not None
+    write(data_dir, "aliases.json", [])
+    assert load_data(data_dir) is not None
 
 
 @pytest.mark.spec("DAT-16")

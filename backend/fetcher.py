@@ -31,6 +31,7 @@ import tempfile
 import time
 import unicodedata
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -154,6 +155,11 @@ class MediaWikiApi:
         self._config = config
         self._clock = clock
         self._last_start: float | None = None
+        # Counters for the pilot measurements (requests are counted per attempt, retries included).
+        self.step = 0
+        self.requests = 0
+        self.retries = 0
+        self.requests_by_step: dict[int, int] = {}
 
     def _throttle(self) -> None:
         now = self._clock.monotonic()
@@ -172,6 +178,8 @@ class MediaWikiApi:
         retries = 0
         while True:
             self._throttle()
+            self.requests += 1
+            self.requests_by_step[self.step] = self.requests_by_step.get(self.step, 0) + 1
             try:
                 response = self._client.get(url, params=full)
             except httpx.HTTPError as exc:
@@ -199,6 +207,7 @@ class MediaWikiApi:
             retries += 1
             if retries > MAX_RETRIES:
                 raise FetchError(f"giving up after {MAX_RETRIES} retries ({reason})")
+            self.retries += 1
             wait = max(_retry_after(response) or 0.0, BACKOFF_BASE_SECONDS * 2 ** (retries - 1))
             log.warning("%s from %s.wikipedia.org; retry %d/%d in %.1f s", reason, lang, retries, MAX_RETRIES, wait)
             self._clock.sleep(wait)
@@ -307,6 +316,62 @@ def _alias_key(entry: AliasEntry) -> tuple[str, str, str]:
     return (entry.alias, entry.target, entry.source)
 
 
+def build_aliases(
+    en_redirects: Mapping[str, Sequence[str]], ja_aliases: Iterable[AliasEntry]
+) -> tuple[list[AliasEntry], int]:
+    """All alias entries of the dataset, sorted, and how many were dropped.
+
+    C-8 (SPEC v2.12): an entry whose alias equals its target (exactly, after NFC) is not a data
+    error; it is simply not written. The canonical identity is unchanged. Real case: jawiki has a
+    redirect named ``Albert Einstein`` that points at Einstein's article."""
+    entries = {AliasEntry(nfc(alias), nfc(target), "en_redirect") for target, names in en_redirects.items() for alias in names}
+    entries.update(AliasEntry(nfc(e.alias), nfc(e.target), e.source) for e in ja_aliases)
+    kept = {entry for entry in entries if entry.alias != entry.target}
+    return sorted(kept, key=_alias_key), len(entries) - len(kept)
+
+
+@dataclass(frozen=True)
+class RunStats:
+    """What a run did and cost; the measurements of the pilot (SPEC v2.12)."""
+
+    people: int
+    links: int
+    raw_links: int
+    aliases: int
+    aliases_dropped_as_self: int
+    requests: int
+    retries: int
+    requests_by_step: Mapping[int, int]
+    seconds: float
+    seconds_by_step: Mapping[int, float]
+    file_bytes: Mapping[str, int]
+
+    @property
+    def total_bytes(self) -> int:
+        return sum(self.file_bytes.values())
+
+
+def format_stats(stats: RunStats) -> str:
+    people = max(stats.people, 1)
+    steps = range(1, 6)
+    by_step_requests = ", ".join(f"step {n} {stats.requests_by_step.get(n, 0)}" for n in steps)
+    by_step_seconds = ", ".join(f"step {n} {stats.seconds_by_step.get(n, 0.0):.1f}s" for n in steps)
+    sizes = ", ".join(f"{name} {size} bytes" for name, size in stats.file_bytes.items())
+    return "\n".join(
+        [
+            "fetch summary",
+            f"  people {stats.people}, links {stats.links} ({stats.links / people:.1f} per person) "
+            f"out of {stats.raw_links} raw links ({stats.raw_links / people:.1f} per person, "
+            f"{stats.links / max(stats.raw_links, 1):.1%} inside the seed set)",
+            f"  aliases {stats.aliases} ({stats.aliases / people:.1f} aliases per person), "
+            f"dropped as alias == target {stats.aliases_dropped_as_self}",
+            f"  requests {stats.requests} ({stats.requests / people:.2f} per person, retries {stats.retries}): {by_step_requests}",
+            f"  seconds {stats.seconds:.1f} total ({stats.seconds / people:.2f} seconds per person): {by_step_seconds}",
+            f"  size {sizes}; total {stats.total_bytes} bytes ({stats.total_bytes / people:.0f} bytes per person)",
+        ]
+    )
+
+
 # --------------------------------------------------------------------------- output
 
 
@@ -404,41 +469,61 @@ def _rollback(data_dir: Path, old: Path, existing: Sequence[str], touched: Seque
 class Fetcher:
     def __init__(self, data_dir: Path | str, client: httpx.Client, config: FetcherConfig, clock=None) -> None:
         self.data_dir = Path(data_dir)
-        self._api = MediaWikiApi(client, config, clock if clock is not None else SystemClock())
+        self._clock = clock if clock is not None else SystemClock()
+        self._api = MediaWikiApi(client, config, self._clock)
+        self._seconds_by_step: dict[int, float] = {}
 
-    def run(self) -> None:
+    @contextmanager
+    def _step(self, number: int) -> Iterator[None]:
+        self._api.step = number
+        began = self._clock.monotonic()
+        try:
+            yield
+        finally:
+            self._seconds_by_step[number] = self._clock.monotonic() - began
+
+    def run(self) -> RunStats:
+        began = self._clock.monotonic()
         seeds = read_seed_names(self.data_dir / "seed_names.txt")
-        canonical = self.resolve_seeds(seeds)  # step 1
+        with self._step(1):
+            canonical = self.resolve_seeds(seeds)
         if not canonical:
             raise FetchError("none of the seeds resolved to an article; refusing to replace the dataset")
-        links = self.fetch_links(canonical)  # step 2
-        metadata = self.fetch_metadata(canonical)  # step 3
-        redirects = self.fetch_en_redirects(canonical)  # step 4
-        ja_aliases = self.fetch_ja_aliases(  # step 5
-            {name: m.ja_langlink for name, m in metadata.items() if m.ja_langlink}
-        )
+        with self._step(2):
+            links = self.fetch_links(canonical)
+        with self._step(3):
+            metadata = self.fetch_metadata(canonical)
+        with self._step(4):
+            redirects = self.fetch_en_redirects(canonical)
+        with self._step(5):
+            ja_aliases = self.fetch_ja_aliases(
+                {name: m.ja_langlink for name, m in metadata.items() if m.ja_langlink}
+            )
 
         redirect_targets = {alias: target for target, aliases in redirects.items() for alias in aliases}
         graph = build_graph(canonical, links, redirect_targets)
-        aliases = sorted(
-            {AliasEntry(alias, target, "en_redirect") for target, names in redirects.items() for alias in names}
-            | set(ja_aliases),
-            key=_alias_key,
+        aliases, dropped = build_aliases(redirects, ja_aliases)
+        texts = {
+            "graph.json": render_graph(graph),
+            "people.json": render_people(metadata),
+            "aliases.json": render_aliases(aliases),
+        }
+        commit_dataset(self.data_dir, texts)
+        stats = RunStats(
+            people=len(graph),
+            links=sum(len(adj) for adj in graph.values()),
+            raw_links=sum(len(titles) for titles in links.values()),
+            aliases=len(aliases),
+            aliases_dropped_as_self=dropped,
+            requests=self._api.requests,
+            retries=self._api.retries,
+            requests_by_step=dict(self._api.requests_by_step),
+            seconds=self._clock.monotonic() - began,
+            seconds_by_step=dict(self._seconds_by_step),
+            file_bytes={name: len(text.encode("utf-8")) for name, text in texts.items()},
         )
-        commit_dataset(
-            self.data_dir,
-            {
-                "graph.json": render_graph(graph),
-                "people.json": render_people(metadata),
-                "aliases.json": render_aliases(aliases),
-            },
-        )
-        log.info(
-            "wrote %d people, %d links, %d aliases",
-            len(graph),
-            sum(len(adj) for adj in graph.values()),
-            len(aliases),
-        )
+        log.info("%s", format_stats(stats))
+        return stats
 
     # Step 1 ------------------------------------------------------------------------
     def resolve_seeds(self, seeds: Sequence[str]) -> list[str]:
