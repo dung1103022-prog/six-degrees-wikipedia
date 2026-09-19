@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.11 (C-10: 0,32 giây vừa là mặc định vừa là ngưỡng tối thiểu cho phép của fetcher; mọi cấu hình < 0,32 giây bị từ chối; Phase 4 vẫn chưa mở)
+**Version:** 2.12 (duyệt C-8: fetcher bỏ alias == target; chốt Q-11: thumbnail giữ nguyên URL của API; duyệt C-14: `aliases.json` sắp xếp ổn định (A-7); Phase 4 vẫn chưa mở)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,15 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.12 — Duyệt C-8 (alias == target bị bỏ), duyệt C-14 (aliases.json sắp xếp ổn định), chốt Q-11 (thumbnail giữ nguyên)
+
+Quyết định nguồn: chủ project, 2026-09-19, sau smoke test với MediaWiki thật. Chưa chạy dataset lớn; pilot 100–200 seed đo trước. Không mở Phase 4.
+
+- **C-8 (duyệt, sửa nội dung):** `alias == target` (so sánh chính xác sau NFC) **không phải lỗi dữ liệu**. Fetcher **bỏ** entry như vậy, không ghi vào `aliases.json`; loader không coi nó là lỗi (nên A-5 "không có entry `alias == target`" **bị bỏ**). Không đổi canonical identity. Lý do: jawiki có redirect mang tên tiếng Anh trỏ về bài (ví dụ `Albert Einstein` → bài Einstein), nên entry này xuất hiện trong dữ liệu thật; resolver vốn ưu tiên canonical chính xác (§4A.3 bước 1) nên entry đó dư thừa. §0.4, §6.3 (A-5), §6.4 (mục "Dữ liệu"), §6.5, §7.0, DAT-14, FET-07, FET-14 cập nhật; thêm FET-20.
+- **C-14 (tách từ C-8, duyệt):** `aliases.json` phải được sắp xếp **ổn định** theo `(alias, target, source)` (so sánh chuỗi của Python, A-7). Bốn hệ quả: (1) fetcher ghi mảng đã sắp xếp và kết quả không phụ thuộc thứ tự hay cách phân trang/continuation của API (hai lần chạy trên cùng dữ liệu cho `aliases.json` giống hệt từng byte); (2) loader kiểm A-7 lúc khởi động và **fail** nếu mảng không sắp xếp (như G-5 cho adjacency), sau A-4 trong thứ tự kiểm; (3) DAT-15 trở thành ID bắt buộc, chỉ phần A-7 được test (phần A-6 vẫn chờ C-7, đưa vào bảng "một phần" ở §7.0); (4) FET-07 và FET-14 kiểm thêm A-7, FET-07 kiểm thêm tính ổn định. Chủ project chỉ duyệt phần sắp xếp; G-6/A-6 (C-7) vẫn chưa duyệt.
+- **Q-11 (chốt):** `thumbnail` trong `people.json` là URL do MediaWiki API trả về, **giữ nguyên**: không cắt `utm_*` hay bất kỳ query string nào, không tự sửa kích thước trong URL. Phase 2 chỉ `html.escape` khi chèn vào `og:image` (§5.4). FET-05 mở rộng; thêm ca test SHR-08 cho `og:image` có `&`.
+- Không thay đổi: `/api/*`, `validate_path`, C-1..C-7, C-9..C-13, Q-1..Q-10, G-6/A-6 (C-7).
 
 ### v2.11 — C-10: 0,32 giây là ngưỡng tối thiểu cho phép
 
@@ -240,7 +249,8 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | C-5 | `/api/resolve` luôn 200; `/api/search` chuyển unresolved/ambiguous thành 404 | §3.6 | Đã duyệt (v2.1) |
 | C-6 | Langlink trỏ tới redirect trên jawiki: `ja_title` là bài đích, tiêu đề gốc thành `ja_redirect` | §6.4 bước 5 | Đã duyệt (v2.7) |
 | C-7 | Không canonical name hay alias nào chứa `_` (G-6, A-6) | §6.1, §6.3 | Chưa duyệt |
-| C-8 | `alias == target` là lỗi dữ liệu (A-5); mảng alias phải sắp xếp (A-7) | §6.3 | Chưa duyệt |
+| C-8 | `alias == target` (chính xác, sau NFC) không phải lỗi dữ liệu: fetcher bỏ entry đó, không ghi vào `aliases.json`; loader chấp nhận; không đổi canonical identity (A-5 bị bỏ) | §6.3, §6.4 | Đã duyệt (v2.12, nội dung sửa so với đề xuất ban đầu) |
+| C-14 | `aliases.json` sắp xếp ổn định theo `(alias, target, source)` (A-7): fetcher ghi mảng đã sắp xếp, không phụ thuộc thứ tự/phân trang của API; loader fail khi không sắp xếp. Tách ra từ C-8 | §6.3, §6.4, §6.5 | Đã duyệt (v2.12) |
 | C-9 | Output fetcher transactional ở mức ba file: fetch và validate (§6.5) cả ba trước khi commit; ghi vào staging/tạm trước; chỉ thay dataset hiện tại sau khi cả ba đã ghi và validate thành công; validator fail hoặc lỗi ghi/thay thế khi chạy bình thường → rollback/giữ dataset cũ, không để partial hoặc lẫn mới/cũ. Crash/mất điện giữa các thao tác thay thế không thuộc guarantee. Vị trí staging, module validator và cơ chế không thuộc contract | §6.4, §7.8, §8 | Đã duyệt (v2.7; làm rõ v2.8) |
 | C-10 | Policy nội bộ của fetcher: 0,32 s giữa hai lần bắt đầu request (tối đa 187,5 request/phút) là cả mặc định lẫn ngưỡng tối thiểu cho phép (cấu hình < 0,32 s bị từ chối, đúng 0,32 s được phép), concurrency 1, timeout 30 s, tối đa 5 retry, chờ `max(Retry-After, 5 × 2^(n-1) s)` | §6.4 | Đã duyệt (v2.2; khoảng cách sửa ở v2.10, ngưỡng ở v2.11) |
 | C-11 | Fetcher dùng `httpx.Client` đồng bộ; không `asyncio`/`Semaphore`/worker pool | §6.4 | Đã duyệt (v2.2) |
@@ -256,8 +266,9 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-8 | `<!--OG-->` đúng một lần và nằm trong `<head>`; vi phạm → fail fast khi `/share` được bật | §5.5, §6.5 | Đã chốt (v2.5) |
 | Q-9 | `n` trong `og:title` = số cạnh của path = `len(path) - 1` = `SearchResponse.length` (không phải số node); ví dụ `A → B → C` có `n = 2` | §5.4, §7.6 | Đã chốt (v2.6) |
 | Q-10 | `DIST_DIR` là cấu hình runtime chính thức (env var, mặc định `./dist`); chỉ đọc khi `enable_share=True`; `DIST_DIR/index.html` là template của `/share`; không thuộc dữ liệu hay contract frontend | §0.3, §5.5 | Đã chốt (v2.6) |
+| Q-11 | `thumbnail` trong `people.json` giữ nguyên URL do MediaWiki API trả về: không cắt `utm_*`/query string, không sửa kích thước trong URL | §6.2, §6.4, §5.4 | Đã chốt (v2.12) |
 
-Các điểm C-3, C-4, C-7, C-8 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-6, C-9 thuộc pha 3 và đã được duyệt ở v2.7, nhưng pha 3 vẫn chưa mở nên chưa implement. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
+Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-14 đã được duyệt ở v2.12: loader kiểm A-7 (test DAT-15, phần A-7) và fetcher ghi mảng đã sắp xếp (FET-07, FET-14). C-8 đã được duyệt ở v2.12: phần loader (chấp nhận `alias == target`) đã đúng sẵn và có test ở DAT-14; phần fetcher (bỏ entry) thuộc pha 3, test FET-20. C-6, C-9 thuộc pha 3 và đã được duyệt ở v2.7, nhưng pha 3 vẫn chưa mở nên chưa implement. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
 ---
 
@@ -677,7 +688,7 @@ Path hợp lệ khi và chỉ khi:
 - **Path hợp lệ** (`validate_path` trả danh sách tên) — placeholder được thay bằng các meta tag:
   - `og:title` = `"{first} → {last}: {n} bước"` (format đặt trong một hằng số duy nhất; ngôn ngữ là tiếng Việt theo Q-3, đã chốt ở v2.5). *(v2.6, Q-9)* `n` = số cạnh của path = `len(path) - 1` = `SearchResponse.length`, **không** phải số node; ví dụ path `A → B → C` có `n = 2`, nên `og:title` là `"A → C: 2 bước"`;
   - `og:description` = các tên trên path nối bằng `" → "`;
-  - `og:image` = thumbnail của người đầu tiên; **bỏ hẳn tag** nếu thumbnail là `None`;
+  - `og:image` = thumbnail của người đầu tiên, giữ nguyên URL kể cả query string (Q-11; chỉ `html.escape`, nên `&` thành `&amp;`); **bỏ hẳn tag** nếu thumbnail là `None`;
   - `og:url` = URL share **dựng lại từ các tên đã validate** bằng `urlencode(..., doseq=True)`, không echo lại chuỗi query thô. *(v2.5, Q-6)* `og:url` sử dụng base URL của request hiện tại, gồm scheme, host và `root_path` nếu request có; path `/share` và query được dựng lại từ canonical name đã validate. Không có biến cấu hình `PUBLIC_BASE_URL` ở phiên bản này;
   - `twitter:card` = `summary`.
 - **Path không hợp lệ** (`validate_path` trả `None`) — placeholder được thay bằng **chuỗi rỗng**. Server **không** chèn bộ OG mặc định riêng và không thêm hằng số text nào. *(v2.4)* **"OG meta mặc định của site" được định nghĩa là các meta tag tĩnh đã có sẵn trong `dist/index.html`**; chúng nguyên vẹn vì chỉ placeholder bị thay. Vì không sinh text mới, hành vi này **không phụ thuộc Q-3**. *(v2.5, Q-7)* Các meta tĩnh đó **không** gồm `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` (§5.5): năm property này chỉ do `/share` tạo cho path hợp lệ. Hệ quả: với path không hợp lệ, trang không có năm property này và crawler dùng các meta tĩnh còn lại (ví dụ `<title>`, `description`, `og:site_name`).
@@ -740,6 +751,7 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 - **P-1** Tập key của `people.json` bằng đúng tập key của `graph.json`.
 - **P-2** `wiki_url` là chuỗi không rỗng, lấy nguyên giá trị từ API (`inprop=url`), không tự dựng.
 - **P-3** `thumbnail` và `description` là chuỗi hoặc `null`; không dùng chuỗi rỗng để biểu diễn "không có".
+- **Thumbnail giữ nguyên** *(Q-11, v2.12)*: `thumbnail` là URL do MediaWiki API trả về, không sửa: không cắt `utm_*` hay query string nào, không đổi kích thước trong URL (API có thể trả cỡ khác `pithumbsize`, ví dụ `250px` khi yêu cầu `200`). Đây là quy tắc dữ liệu của fetcher, không phải invariant mà loader kiểm tra.
 - Không đổi ở v2: `people.json` không chứa tên tiếng Nhật hay link Japanese Wikipedia.
 
 ### 6.3 `data/aliases.json` *(mới ở v2)*
@@ -761,9 +773,9 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 - **A-2** `alias` không rỗng, ở dạng NFC, và `match_key(alias) != ""`.
 - **A-3** `source` thuộc tập giá trị trên.
 - **A-4** Không có entry trùng lặp hoàn toàn (cùng `alias`, `target`, `source`).
-- **A-5** *(chưa duyệt — C-8; không kiểm tra ở pha 1)* Không có entry mà `alias == target`.
+- **A-5** *(bỏ ở v2.12, C-8)* `alias == target` **không phải lỗi dữ liệu**: loader không kiểm tra và chấp nhận entry như vậy nếu có trong file. Fetcher không ghi entry `alias == target` (§6.4).
 - **A-6** *(chưa duyệt — C-7; không kiểm tra ở pha 1)* Không `alias` nào chứa ký tự `_` (lý do như G-6).
-- **A-7** *(chưa duyệt — C-8; không kiểm tra ở pha 1)* Mảng được sắp xếp theo `(alias, target, source)` để diff giữa các lần fetch ổn định.
+- **A-7** *(đã duyệt — C-14, v2.12)* Mảng được sắp xếp theo `(alias, target, source)` để diff giữa các lần fetch ổn định. Loader kiểm và fail nếu không sắp xếp; fetcher ghi mảng đã sắp xếp (§6.4).
 
 ### 6.4 Fetcher contract (`backend/fetcher.py`) *(sửa ở v2)*
 - Input: `data/seed_names.txt` (mỗi dòng một tên).
@@ -816,6 +828,9 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 - Tiêu đề lấy từ API được dùng nguyên dạng (dấu cách); fetcher không tự chuyển đổi `_`/dấu cách. Nếu có chỗ nào phải chuyển (ví dụ đọc từ URL), việc đó chỉ nằm trong fetcher.
 - NFC-normalize mọi tiêu đề trước khi ghi.
 - Ghi file theo đúng §6.1, §6.2, §6.3.
+- *(C-8, đã duyệt ở v2.12)* Entry có `alias == target` (so sánh chính xác, sau NFC; áp dụng cho mọi `source`) **bị bỏ**, không ghi vào `aliases.json`. Nó không phải lỗi dữ liệu; canonical identity không đổi. Trường hợp thật: jawiki có redirect mang tên tiếng Anh, ví dụ `Albert Einstein` → bài Einstein.
+- *(Q-11, v2.12)* `thumbnail` được ghi đúng URL mà API trả về, không cắt `utm_*`, không sửa kích thước (§6.2).
+- *(C-14, v2.12)* `aliases.json` được ghi đã sắp xếp theo `(alias, target, source)` và ổn định: cùng dữ liệu API thì cùng từng byte, bất kể thứ tự trả về hay cách phân trang/continuation của API.
 - *(C-9, đã duyệt ở v2.7; làm rõ ở v2.8)* **Output là transactional ở mức dataset (ba file `graph.json`, `people.json`, `aliases.json`):**
   1. Fetch và validate toàn bộ ba file (các kiểm tra của §6.5) trước khi commit output.
   2. Ghi output vào staging/tạm trước; không ghi trực tiếp lên các file `data/` hiện tại.
@@ -836,9 +851,10 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 ### 6.5 Startup validation (`backend/app/data.py`)
 Khi khởi động, loader kiểm tra:
 - G-1..G-5, P-1..P-3, A-1..A-4;
+- A-7: `aliases.json` sắp xếp theo `(alias, target, source)` *(C-14, v2.12; kiểm sau A-4)*;
 - mọi tên và alias ở dạng NFC.
 
-*(v2.3)* G-6, A-5, A-6, A-7 (C-7, C-8) chưa duyệt nên loader **không** kiểm tra; khi được duyệt, thêm vào danh sách trên.
+*(v2.3, sửa ở v2.12)* G-6 và A-6 (C-7) chưa duyệt nên loader **không** kiểm tra (A-7 đã duyệt, C-14, nên được kiểm); khi được duyệt, thêm vào danh sách trên. A-5 đã bị bỏ (C-8, v2.12): `alias == target` không phải lỗi và loader chấp nhận.
 
 Kiểm tra `dist/index.html` và placeholder `<!--OG-->` (§5.5) là một hàm riêng, **chỉ được gọi khi `/share` được bật** (chế độ Phase 2+, §0.3); loader dữ liệu ở trên không gọi nó. Ở chế độ Phase 1 (`/share` bị tắt tường minh), app khởi động được khi chưa có `dist/`. *(v2.2, viết lại ở v2.5)* Khi `/share` được bật mà `dist/index.html` thiếu hoặc không hợp lệ → raise lỗi, app không khởi động; không được bỏ route `/share` một cách âm thầm. *(v2.5, Q-5, Q-8)*
 
@@ -867,9 +883,8 @@ Quy tắc viết test: §0.2.
 |---|---|---|---|
 | API-17 | C-3 | toàn bộ | input chỉ gồm khoảng trắng ở `/api/search` |
 | DAT-10 | C-7 | toàn bộ | G-6 |
-| DAT-15 | C-7, C-8 | toàn bộ | A-6, A-7 |
+| DAT-15 | C-7 | một phần | A-6 |
 | API-08 | C-4 | một phần | trường hợp "dài 256 ký tự" |
-| DAT-14 | C-8 | một phần | trường hợp `alias == target` (A-5) |
 
 Khi một điểm được duyệt, xóa dòng tương ứng khỏi bảng này (và ghi changelog); ID đó trở thành bắt buộc.
 
@@ -1022,8 +1037,8 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | DAT-11 | *(v2)* alias có `target` không phải key của graph (A-1) | fail |
 | DAT-12 | *(v2)* alias rỗng, không NFC, hoặc match key rỗng (A-2) | fail |
 | DAT-13 | *(v2)* `source` không hợp lệ (A-3) | fail |
-| DAT-14 | *(v2)* entry trùng lặp hoàn toàn (A-4) hoặc `alias == target` (A-5) | fail. *(v2.3)* Phần A-5 phụ thuộc C-8 (chưa duyệt), không test ở pha 1 |
-| DAT-15 | *(v2; phụ thuộc C-7, C-8 — chưa duyệt)* alias chứa `_` (A-6) hoặc mảng chưa sắp xếp (A-7) | fail |
+| DAT-14 | *(v2; sửa ở v2.12)* entry trùng lặp hoàn toàn (A-4) | fail. *(C-8, v2.12)* Entry có `alias == target` **không** phải lỗi: load thành công (A-5 đã bị bỏ); test `alias == target` nạp được và resolver vẫn phân giải đúng |
+| DAT-15 | *(v2; sửa ở v2.12)* mảng alias chưa sắp xếp theo `(alias, target, source)` (A-7, C-14 đã duyệt); alias chứa `_` (A-6) phụ thuộc C-7 (chưa duyệt) | fail. Phần A-6 không test cho tới khi C-7 được duyệt |
 | DAT-16 | *(v2)* alias xung đột | load thành công, log số match key mơ hồ |
 | DAT-17 | *(pha 2; v2.5, Q-5)* `/share` được bật (chế độ Phase 2+) nhưng `dist/index.html` không tồn tại | fail khi khởi động, thông báo nêu đường dẫn thiếu; route `/share` không bị bỏ âm thầm |
 | DAT-18 | *(pha 2; v2.5, Q-5)* `enable_share=False` (chế độ Phase 1), không có `dist/` (kể cả khi `dist/index.html` tồn tại nhưng không hợp lệ, `/share` vẫn không được đăng ký và không bị kiểm tra) | app khởi động thành công; `/api/*` hoạt động; không có route `/share` (`GET /share` → 404); không kiểm tra placeholder; kết quả không phụ thuộc biến môi trường hay thư mục làm việc |
@@ -1036,21 +1051,22 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 | FET-02 | link tới trang redirect được resolve về canonical name |
 | FET-03 | seed là redirect được resolve; seed trùng sau resolve được gộp |
 | FET-04 | seed không tồn tại bị loại và ghi log |
-| FET-05 | metadata batch: trang không có ảnh → `thumbnail: null` |
+| FET-05 | metadata batch: trang không có ảnh → `thumbnail: null`. *(Q-11, v2.12)* URL thumbnail trả về được ghi nguyên văn, kể cả query `utm_*` và cỡ ảnh khác `pithumbsize` |
 | FET-06 | *(sửa ở v2.1)* 429 và 5xx được retry; response HTTP 200 có `error.code == "maxlag"` được nhận ra là lỗi maxlag và retry; body có `error` khác không retry; hết 5 lần retry thì dừng và không ghi file |
-| FET-07 | *(sửa ở v2.7)* output thỏa mãn G-1..G-5, P-1..P-3, A-1..A-4 (các kiểm tra của §6.5). Không test G-6, A-5, A-6, A-7 cho tới khi C-7/C-8 được duyệt |
+| FET-07 | *(sửa ở v2.7)* output thỏa mãn G-1..G-5, P-1..P-3, A-1..A-4 và A-7 (các kiểm tra của §6.5; A-7 từ C-14, v2.12). Không test G-6 và A-6 (C-7) cho tới khi được duyệt; A-5 đã bị bỏ (C-8, v2.12). *(C-14)* Tính ổn định: hai lần chạy trên cùng dữ liệu API, kể cả khi API phân trang/continuation khác nhau, cho `aliases.json` (và hai file kia) giống hệt từng byte |
 | FET-08 | *(v2)* langlinks `ja` sinh `ja_title`; người không có langlink `ja` không sinh alias |
 | FET-09 | *(v2)* continuation khi một request có nhiều prop (`langlinks`, `redirects`) gửi lại toàn bộ tham số `continue` |
 | FET-10 | *(v2)* en redirect sinh `en_redirect` cho đúng target |
 | FET-11 | *(v2)* langlink trỏ tới redirect trên jawiki: `ja_title` là bài đích, tiêu đề gốc thành `ja_redirect` |
 | FET-12 | *(v2)* langlink trỏ tới trang không tồn tại trên jawiki: bị bỏ, ghi log |
 | FET-13 | *(v2)* hai target cùng `ja_title`: xung đột được giữ nguyên, `ja_redirect` sinh cho cả hai target |
-| FET-14 | *(sửa ở v2.1, v2.7)* mọi request là `GET`, có `maxlag=5`, `format=json`, `formatversion=2`, header `User-Agent` đúng định dạng và chứa giá trị `WIKI_UA_CONTACT`, header `Accept-Encoding` có `gzip`, timeout 30 giây; output thỏa mãn A-1..A-4 (không test A-5..A-7 cho tới khi C-7/C-8 được duyệt). *(C-9, v2.7)* validator fail → không ghi file output nào, ba file cũ nguyên vẹn |
+| FET-14 | *(sửa ở v2.1, v2.7)* mọi request là `GET`, có `maxlag=5`, `format=json`, `formatversion=2`, header `User-Agent` đúng định dạng và chứa giá trị `WIKI_UA_CONTACT`, header `Accept-Encoding` có `gzip`, timeout 30 giây; output thỏa mãn A-1..A-4 và A-7 (không test A-6 cho tới khi C-7 được duyệt; A-5 đã bị bỏ, C-8; A-7 từ C-14). *(C-9, v2.7)* validator fail → không ghi file output nào, ba file cũ nguyên vẹn |
 | FET-15 | *(v2.1)* thời gian chờ retry = `max(Retry-After, 5 × 2^(n-1))`: `Retry-After` lớn hơn backoff thì dùng `Retry-After`; không có header thì dùng backoff (dùng đồng hồ giả, không sleep thật) |
 | FET-16 | *(v2.1; sửa ở v2.10)* không bao giờ có hai request chờ phản hồi cùng lúc; khoảng cách giữa hai lần bắt đầu request ≥ 0,32 giây, tức không quá 187,5 request/phút (đồng hồ giả); giá trị mặc định của cấu hình là 0,32 giây |
 | FET-17 | *(v2.1; sửa ở v2.11)* cấu hình khoảng cách < 0,32 giây bị từ chối khi khởi động fetcher (gồm 0,31, 0,3, 0,25, 0,2, 0 và số âm), trước khi gửi request nào; đúng 0,32 giây được chấp nhận |
 | FET-18 | *(v2.1)* thiếu `WIKI_UA_CONTACT` → fetcher dừng trước khi gửi request đầu tiên |
 | FET-19 | *(v2.8, C-9)* lỗi ghi/thay thế được inject ở file output thứ hai (thứ tự ghi do implementation chọn; không cần mạng) | fetcher dừng với lỗi; sau đó ba file `data/` hiện tại có nội dung y như trước (dataset cũ nguyên vẹn); không có output partial nào được coi là dataset mới, tức không có file mới nào nằm ở vị trí production. Một ID có thể có nhiều test (§0.2), nên có thể thêm ca lỗi ở bước thay thế |
+| FET-20 | *(v2.12, C-8)* dữ liệu API cho ra entry có `alias == target` (ví dụ một redirect jawiki mang tên tiếng Anh của người đó, hoặc ja title trùng canonical name) | không có entry `alias == target` nào trong `aliases.json`; các entry khác của cùng người vẫn còn; canonical name trong `graph.json` và `people.json` không đổi; output vẫn qua các kiểm tra của §6.5 |
 
 ### 7.9 Frontend (mức tối thiểu)
 | ID | Kiểm tra |
