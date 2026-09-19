@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.6 (chốt `n` trong `og:title` = số cạnh; `DIST_DIR` là cấu hình runtime chính thức; ghi nhận nợ kỹ thuật của test harness trên Windows)
+**Version:** 2.7 (duyệt C-6 và C-9; sửa mâu thuẫn FET-07/FET-14 với §6.5; Phase 3 vẫn chưa mở)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,17 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.7 — Duyệt C-6, C-9; sửa FET-07/FET-14; Phase 3 vẫn chưa mở
+
+Quyết định nguồn: chủ project, 2026-09-19 (sau review Archify của hai diagram Phase 3). Chỉ các điểm dưới đây thay đổi; mọi điểm khác giữ nguyên trạng thái. **Không mở Phase 3**: chưa có `fetcher.py`, `data/` hay test FET; §0.3 giữ "Chưa mở; chờ chủ project mở pha". Không có thay đổi code hay test trong v2.7.
+
+- **C-6 (duyệt):** giữ nguyên behavior đã mô tả ở §6.4 bước 5: langlink trỏ tới redirect trên jawiki thì `ja_title` là bài đích sau khi resolve, tiêu đề langlink gốc thành `ja_redirect`. §0.4 và §6.4 bước 5 cập nhật trạng thái. FET-11 giờ là test bắt buộc của pha 3.
+- **C-9 (duyệt):** fetcher validate output theo §6.5 trước khi ghi đè. Validator fail → **không ghi file output nào**, dữ liệu cũ giữ nguyên; `data/` không bao giờ ở trạng thái partial hoặc lẫn giữa dữ liệu mới và cũ. §0.4 và §6.4 (mục "Dữ liệu") cập nhật. Việc fetcher dùng module validator nào và cách hiện thực (ví dụ cách thay thế file) **không** thuộc contract; SPEC chỉ yêu cầu output phải pass §6.5 trước khi ghi.
+- **FET-07 (sửa):** chỉ kiểm G-1..G-5, P-1..P-3, A-1..A-4. Bỏ G-6 (C-7 chưa duyệt) và bỏ cụm "chạy chung validator", vì SPEC không quy định module.
+- **FET-14 (sửa):** chỉ kiểm A-1..A-4 (bỏ A-5..A-7, C-7/C-8 chưa duyệt), giữ các yêu cầu request-policy đã duyệt ở §6.4, và thay điều kiện cũ "validator fail thì không ghi đè file cũ" bằng điều kiện C-9 mới ("không ghi file output nào; dữ liệu cũ nguyên vẹn").
+- G-6, A-5, A-6, A-7 (C-7, C-8) **vẫn chưa duyệt** và không được test cho tới khi được duyệt; §6.5 không đổi.
+- Không thay đổi `/api/*`, `/share`, Q-1..Q-10, C-1..C-5, C-7, C-8, C-10..C-13, `validate_path`.
 
 ### v2.6 — `n` trong `og:title`; `DIST_DIR`; nợ kỹ thuật của test harness
 
@@ -186,10 +197,10 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | C-3 | Input chỉ gồm khoảng trắng → 404 `UNRESOLVED_NAME` ở `/api/search`, không phải 422 | §3.2 | Chưa duyệt |
 | C-4 | Cận trên 255 ký tự cho `from`, `to`, `q` và cận dưới 1 ký tự cho `q`, vi phạm → 422. (Yêu cầu `from`/`to` không rỗng → 422 có từ v1, không thuộc C-4.) | §3.2, §3.6 | Chưa duyệt |
 | C-5 | `/api/resolve` luôn 200; `/api/search` chuyển unresolved/ambiguous thành 404 | §3.6 | Đã duyệt (v2.1) |
-| C-6 | Langlink trỏ tới redirect trên jawiki: `ja_title` là bài đích, tiêu đề gốc thành `ja_redirect` | §6.4 bước 5 | Chưa duyệt |
+| C-6 | Langlink trỏ tới redirect trên jawiki: `ja_title` là bài đích, tiêu đề gốc thành `ja_redirect` | §6.4 bước 5 | Đã duyệt (v2.7) |
 | C-7 | Không canonical name hay alias nào chứa `_` (G-6, A-6) | §6.1, §6.3 | Chưa duyệt |
 | C-8 | `alias == target` là lỗi dữ liệu (A-5); mảng alias phải sắp xếp (A-7) | §6.3 | Chưa duyệt |
-| C-9 | Fetcher chạy validator trên output, không ghi đè file cũ nếu fail | §6.4 | Chưa duyệt |
+| C-9 | Fetcher validate output theo §6.5 trước khi ghi đè; validator fail → không ghi file output nào, dữ liệu cũ giữ nguyên; không để dataset partial hoặc lẫn mới/cũ. Module validator và cách hiện thực không thuộc contract | §6.4 | Đã duyệt (v2.7) |
 | C-10 | Policy nội bộ của fetcher: 0,25 s giữa hai request, timeout 30 s, tối đa 5 retry, chờ `max(Retry-After, 5 × 2^(n-1) s)` | §6.4 | Đã duyệt (v2.2) |
 | C-11 | Fetcher dùng `httpx.Client` đồng bộ; không `asyncio`/`Semaphore`/worker pool | §6.4 | Đã duyệt (v2.2) |
 | C-12 | `/api/path` không bao giờ trả 422; mọi path không hợp lệ → `{"valid": false, "path": []}` | §3.7 | Đã duyệt (v2.2) |
@@ -205,7 +216,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-9 | `n` trong `og:title` = số cạnh của path = `len(path) - 1` = `SearchResponse.length` (không phải số node); ví dụ `A → B → C` có `n = 2` | §5.4, §7.6 | Đã chốt (v2.6) |
 | Q-10 | `DIST_DIR` là cấu hình runtime chính thức (env var, mặc định `./dist`); chỉ đọc khi `enable_share=True`; `DIST_DIR/index.html` là template của `/share`; không thuộc dữ liệu hay contract frontend | §0.3, §5.5 | Đã chốt (v2.6) |
 
-Các điểm C-3, C-4, C-7, C-8 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-6, C-9 thuộc pha 3. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
+Các điểm C-3, C-4, C-7, C-8 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-6, C-9 thuộc pha 3 và đã được duyệt ở v2.7, nhưng pha 3 vẫn chưa mở nên chưa implement. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
 ---
 
@@ -726,7 +737,7 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 **Bước 4 — en redirect (enwiki):** theo batch, `prop=redirects`, `rdnamespace=0`, `rdlimit=max`. Mỗi redirect sinh một entry `en_redirect`.
 
 **Bước 5 — ja redirect (jawiki):** với tập tiêu đề thu được ở bước 3, gọi `ja.wikipedia.org` theo batch với `redirects=1`, `prop=redirects`, `rdnamespace=0`, `rdlimit=max`.
-- Nếu tiêu đề lấy từ langlink bản thân là một redirect trên jawiki: `ja_title` là **tiêu đề bài đích sau khi resolve**, còn tiêu đề langlink gốc được ghi là một `ja_redirect`.
+- Nếu tiêu đề lấy từ langlink bản thân là một redirect trên jawiki: `ja_title` là **tiêu đề bài đích sau khi resolve**, còn tiêu đề langlink gốc được ghi là một `ja_redirect`. *(C-6, đã duyệt ở v2.7)*
 - Nếu tiêu đề langlink không tồn tại trên jawiki: bỏ, ghi log, không sinh alias nào từ nó.
 - Nếu nhiều `target` cùng có một `ja_title` (xung đột): mỗi `ja_redirect` của bài jawiki đó được sinh cho **từng** `target`, giữ nguyên xung đột.
 
@@ -763,7 +774,8 @@ Cả ba file: UTF-8, `ensure_ascii=False`, mọi chuỗi tên ở dạng NFC. N�
 *Dữ liệu*
 - Tiêu đề lấy từ API được dùng nguyên dạng (dấu cách); fetcher không tự chuyển đổi `_`/dấu cách. Nếu có chỗ nào phải chuyển (ví dụ đọc từ URL), việc đó chỉ nằm trong fetcher.
 - NFC-normalize mọi tiêu đề trước khi ghi.
-- Ghi file theo đúng §6.1, §6.2, §6.3, và chạy validator §6.5 trên output trước khi ghi đè file cũ; nếu validator fail thì không ghi đè.
+- Ghi file theo đúng §6.1, §6.2, §6.3.
+- *(C-9, đã duyệt ở v2.7)* Trước khi ghi đè, output (cả ba file) phải thỏa các kiểm tra của §6.5. Nếu validator fail → **không ghi file output nào** và dữ liệu cũ giữ nguyên. `data/` không bao giờ ở trạng thái partial hoặc lẫn giữa dữ liệu mới và cũ. Việc fetcher dùng module validator nào và cách hiện thực không thuộc contract; SPEC chỉ yêu cầu output phải pass §6.5 trước khi ghi.
 
 *Thời gian chạy:* với dataset khoảng 10k người và tốc độ trên, một lần fetch có thể mất từ vài chục phút tới vài giờ tùy số request continuation. Điều này được chấp nhận vì fetcher chạy tay, không nằm trên đường request của production.
 
@@ -979,14 +991,14 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 | FET-04 | seed không tồn tại bị loại và ghi log |
 | FET-05 | metadata batch: trang không có ảnh → `thumbnail: null` |
 | FET-06 | *(sửa ở v2.1)* 429 và 5xx được retry; response HTTP 200 có `error.code == "maxlag"` được nhận ra là lỗi maxlag và retry; body có `error` khác không retry; hết 5 lần retry thì dừng và không ghi file |
-| FET-07 | output thỏa mãn toàn bộ G-1..G-6, P-1..P-3 (chạy chung validator của §6.5) |
+| FET-07 | *(sửa ở v2.7)* output thỏa mãn G-1..G-5, P-1..P-3, A-1..A-4 (các kiểm tra của §6.5). Không test G-6, A-5, A-6, A-7 cho tới khi C-7/C-8 được duyệt |
 | FET-08 | *(v2)* langlinks `ja` sinh `ja_title`; người không có langlink `ja` không sinh alias |
 | FET-09 | *(v2)* continuation khi một request có nhiều prop (`langlinks`, `redirects`) gửi lại toàn bộ tham số `continue` |
 | FET-10 | *(v2)* en redirect sinh `en_redirect` cho đúng target |
 | FET-11 | *(v2)* langlink trỏ tới redirect trên jawiki: `ja_title` là bài đích, tiêu đề gốc thành `ja_redirect` |
 | FET-12 | *(v2)* langlink trỏ tới trang không tồn tại trên jawiki: bị bỏ, ghi log |
 | FET-13 | *(v2)* hai target cùng `ja_title`: xung đột được giữ nguyên, `ja_redirect` sinh cho cả hai target |
-| FET-14 | *(sửa ở v2.1)* mọi request là `GET`, có `maxlag=5`, `format=json`, `formatversion=2`, header `User-Agent` đúng định dạng và chứa giá trị `WIKI_UA_CONTACT`, header `Accept-Encoding` có `gzip`, timeout 30 giây; output thỏa mãn A-1..A-7; validator fail thì không ghi đè file cũ |
+| FET-14 | *(sửa ở v2.1, v2.7)* mọi request là `GET`, có `maxlag=5`, `format=json`, `formatversion=2`, header `User-Agent` đúng định dạng và chứa giá trị `WIKI_UA_CONTACT`, header `Accept-Encoding` có `gzip`, timeout 30 giây; output thỏa mãn A-1..A-4 (không test A-5..A-7 cho tới khi C-7/C-8 được duyệt). *(C-9, v2.7)* validator fail → không ghi file output nào, ba file cũ nguyên vẹn |
 | FET-15 | *(v2.1)* thời gian chờ retry = `max(Retry-After, 5 × 2^(n-1))`: `Retry-After` lớn hơn backoff thì dùng `Retry-After`; không có header thì dùng backoff (dùng đồng hồ giả, không sleep thật) |
 | FET-16 | *(v2.1)* không bao giờ có hai request chờ phản hồi cùng lúc; khoảng cách giữa hai lần bắt đầu request ≥ 0,25 giây (đồng hồ giả) |
 | FET-17 | *(v2.1)* cấu hình khoảng cách ≤ 0,2 giây bị từ chối khi khởi động fetcher |
