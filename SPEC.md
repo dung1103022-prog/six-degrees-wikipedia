@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.4 (chốt Q-2: `/share` luôn 200 HTML; định nghĩa "OG meta mặc định"; mở pha 2)
+**Version:** 2.5 (chế độ `/share` tường minh; chốt Q-3 = tiếng Việt; hợp đồng `og:url`, `index.html`, placeholder)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,22 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.5 — Chế độ `/share` tường minh; chốt Q-3; hợp đồng `og:url`, `index.html`, placeholder
+
+Quyết định nguồn: chủ project, 2026-09-19 (sau review `archify-review` của Phase 2). Các quyết định phát sinh từ review được đánh số Q-5..Q-8 (không dùng "A-*" vì trùng tên invariant alias §6.3). Chỉ các điểm dưới đây được chốt; mọi điểm khác giữ nguyên trạng thái. Không mở pha 3/4.
+
+- **Q-5 (chốt) — chế độ `/share` tường minh:** việc `/share` có mặt hay không do cấu hình tường minh quyết định, **không** được suy ra từ việc `dist/index.html` có tồn tại hay không. Chế độ Phase 1: `/share` bị tắt tường minh, app không cần `dist/`. Chế độ Phase 2+: `/share` được bật (chế độ mặc định của app từ Phase 2), `dist/index.html` bắt buộc tồn tại và hợp lệ; thiếu hoặc không hợp lệ → app không khởi động (fail fast). Không bao giờ bỏ route một cách âm thầm. Test pha 1 phải tắt `/share` tường minh. Cấu hình là tham số `enable_share` của app factory (`False` ở chế độ Phase 1/test, mặc định `True`).
+  - **§0.3:** thêm định nghĩa "Chế độ chạy của app"; sửa câu "Pha 1 không phụ thuộc `dist/`" thành áp dụng cho chế độ Phase 1; cập nhật hàng pha 2 (thêm DAT-17, DAT-18).
+  - **§5.4:** "luôn 200 `text/html`, cho mọi input" áp dụng khi `/share` được bật; khi bị tắt (chế độ Phase 1) không có route `/share`.
+  - **§6.5:** viết lại đoạn kiểm tra `dist/index.html` theo hai chế độ.
+- **Q-3 (chốt):** ngôn ngữ của `og:title` / UI ở phiên bản hiện tại là **tiếng Việt**. Format `"{first} → {last}: {n} bước"` giữ trong một hằng số duy nhất. §5.4, §0.3 (hàng pha 4), §9 cập nhật; Q-3 chuyển xuống "Đã chốt".
+- **Q-6 (chốt) — `og:url`:** dùng base URL của request hiện tại, gồm scheme, host và `root_path` nếu request có; path `/share` và query dựng lại từ canonical name đã validate; không echo query thô. **Không** thêm biến cấu hình `PUBLIC_BASE_URL` ở phiên bản này (thêm vào §8). §5.4 cập nhật.
+- **Q-7 (chốt) — không trùng OG tag:** `frontend/index.html` (và `dist/index.html`) **không** chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card`; năm property này chỉ do `/share` tạo cho path hợp lệ, tại vị trí placeholder. Hệ quả cho "OG meta mặc định" (định nghĩa ở v2.4): các meta tĩnh còn lại của `index.html`, không gồm năm property trên. §5.4, §5.5 cập nhật; thêm FE-05. Server không kiểm tra Q-7 lúc khởi động (yêu cầu đối với frontend).
+- **Q-8 (chốt) — placeholder:** `<!--OG-->` phải xuất hiện đúng một lần và nằm trong `<head>`; thiếu, thừa hoặc nằm ngoài `<head>` → fail fast khi `/share` được bật. "Trong `<head>`": vị trí nằm giữa thẻ mở `<head ...>` và thẻ đóng `</head>`, tên thẻ không phân biệt hoa/thường, không cần parser HTML đầy đủ. §5.5, §6.5 cập nhật. Thay đổi so với v2.4: v2.4 chỉ yêu cầu server kiểm tra "có placeholder" và chưa yêu cầu vị trí trong `<head>`.
+- **§7:** DAT-08 mở rộng (thiếu/thừa/ngoài `<head>`); thêm DAT-17 (bật `/share` nhưng thiếu `dist/index.html`), DAT-18 (tắt `/share` tường minh, không có `dist/`), SHR-14 (`og:url` dùng base URL của request, gồm `root_path` nếu có), FE-05 (`index.html` của frontend đúng contract). §7.0: hàng pha 2 thêm DAT-17, DAT-18.
+- **§8:** thêm "biến cấu hình origin công khai (`PUBLIC_BASE_URL`)" vào out of scope.
+- Không thay đổi `/api/*`, C-1..C-13, Q-1, Q-2, Q-4; không đổi contract `validate_path`.
 
 ### v2.4 — Chốt Q-2: `/share` luôn 200 HTML; định nghĩa "OG meta mặc định"
 
@@ -130,12 +146,17 @@ Bản đầu tiên.
 | Pha | Phạm vi | Test phải có | Trạng thái |
 |---|---|---|---|
 | 1 | data loader + startup validation (không gồm placeholder), BFS, resolver, `validate_path`, schema, `/api/people`, `/api/search`, `/api/resolve`, `/api/path` | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | **Được phép bắt đầu** |
-| 2 | `/share`, kiểm tra placeholder `<!--OG-->` | SHR-*, PTH-11, DAT-08 | **Được phép bắt đầu** *(v2.4)* |
+| 2 | `/share` (bật tường minh, §0.3 "Chế độ chạy"), kiểm tra `dist/index.html` và placeholder `<!--OG-->` lúc khởi động | SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | **Được phép bắt đầu** *(v2.4)* |
 | 3 | fetcher | FET-* | Chưa mở; chờ chủ project mở pha |
-| 4 | frontend | FE-* | Chưa mở; chờ chủ project mở pha; Q-3 cần chốt trước phần hiển thị OG/UI text |
+| 4 | frontend | FE-* | Chưa mở; chờ chủ project mở pha; Q-3 đã chốt (tiếng Việt, v2.5) |
 
 - Không viết code của pha chưa mở, kể cả code "chuẩn bị sẵn".
-- Pha 1 không phụ thuộc `dist/` hay frontend build: app phải khởi động và chạy test được khi chưa có `dist/`.
+- Pha 1 không phụ thuộc `dist/` hay frontend build: ở chế độ Phase 1 (bên dưới) app phải khởi động và chạy test được khi chưa có `dist/`.
+- **Chế độ chạy của app** *(v2.5, Q-5)*: việc `/share` có mặt hay không do **cấu hình tường minh** quyết định, không bao giờ được suy ra từ việc `dist/index.html` có tồn tại hay không.
+  - **Chế độ Phase 1:** `/share` bị **tắt** tường minh. App khởi động và chạy được khi chưa có `dist/`; không có route `/share`; không kiểm tra `dist/index.html` hay placeholder.
+  - **Chế độ Phase 2+:** `/share` được **bật**; đây là chế độ mặc định của app từ Phase 2. `dist/index.html` bắt buộc phải tồn tại và hợp lệ (§5.5); thiếu hoặc không hợp lệ → app **không khởi động** (fail fast, §6.5). Không được bỏ route `/share` một cách âm thầm.
+  - Test của pha 1 phải tắt `/share` tường minh, để kết quả test không phụ thuộc vào môi trường của máy chạy test (thư mục làm việc, biến môi trường, có hay không có `dist/`).
+  - Cấu hình bật/tắt là tham số tường minh `enable_share` của app factory (`create_app`): chế độ Phase 1 và test pha 1 dùng `enable_share=False`; mặc định `enable_share=True` (chế độ Phase 2+ / production). `enable_share` không bao giờ được suy ra từ việc `dist/index.html` có tồn tại hay không. Khi `enable_share=False`: không kiểm tra `dist/` và `/share` không được đăng ký. Đây không phải contract HTTP.
 - Không implement tính năng ngoài spec: không database, cache (kể cả cache in-process cho resolver), auth, WebSocket, task queue, image generation, runtime Wikipedia fallback, autocomplete.
 - Chính sách sử dụng Wikimedia API phải được đối chiếu với tài liệu hiện hành khi bắt đầu pha 3.
 
@@ -165,8 +186,12 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | C-13 | Fetcher từ chối chạy nếu thiếu `WIKI_UA_CONTACT`; không hardcode contact | §6.4 | Đã duyệt (v2.2) |
 | Q-1 | `GET /api/path` + `validate_path()` thuần dùng chung với `/share`; PTH-11 bảo đảm cùng phán quyết | §3.7, §5.3 | Đã chốt (v2.1) |
 | Q-2 | `/share` luôn 200 `text/html`; path không hợp lệ → placeholder thay bằng chuỗi rỗng, giữ meta tĩnh của `dist/index.html` | §5.4, §9 | Đã chốt (v2.4) |
-| Q-3 | Ngôn ngữ của `og:title` / UI | §9 | **OPEN** |
+| Q-3 | Ngôn ngữ của `og:title` / UI ở phiên bản hiện tại là tiếng Việt; format trong một hằng số duy nhất | §5.4, §9 | Đã chốt (v2.5) |
 | Q-4 | Fetcher tuần tự, concurrency = 1; không có tùy chọn 2–3 | §6.4 | Đã chốt (v2.1) |
+| Q-5 | Chế độ `/share` tường minh: Phase 1 tắt; Phase 2+ bật và bắt buộc có `dist/index.html`, thiếu → fail fast; không suy ra từ việc file tồn tại | §0.3, §5.4, §5.5, §6.5 | Đã chốt (v2.5) |
+| Q-6 | `og:url` dùng base URL của request hiện tại (scheme, host, `root_path` nếu có) + path `/share` và query dựng lại từ tên đã validate; không có `PUBLIC_BASE_URL` | §5.4, §8 | Đã chốt (v2.5) |
+| Q-7 | `index.html` không chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card`; năm property này chỉ do `/share` tạo tại placeholder | §5.4, §5.5 | Đã chốt (v2.5) |
+| Q-8 | `<!--OG-->` đúng một lần và nằm trong `<head>`; vi phạm → fail fast khi `/share` được bật | §5.5, §6.5 | Đã chốt (v2.5) |
 
 Các điểm C-3, C-4, C-7, C-8 thuộc vùng của pha 1 nhưng **không được implement** ở pha 1 (nguyên tắc 2). C-6, C-9 thuộc pha 3. Khi một điểm được duyệt, sửa SPEC.md và changelog trước (§0.1), rồi mới thêm test và code.
 
@@ -581,23 +606,30 @@ Path hợp lệ khi và chỉ khi:
 **Invariant (v2):** share URL là biểu diễn của identity. Alias (`安倍晋三`, `Abe Shinzo`) hoặc tên có `_` trong `p` làm path không hợp lệ, kể cả khi resolver có thể resolve được chúng.
 
 ### 5.4 Response của `GET /share` *(chốt Q-2 ở v2.4)*
+- Áp dụng khi `/share` được **bật** (chế độ Phase 2+, §0.3). Khi bị tắt tường minh (chế độ Phase 1) thì không có route `/share` và mục này không áp dụng. *(v2.5, Q-5)*
 - **Luôn HTTP `200`, luôn `text/html`**, cho mọi input — kể cả thiếu `p`, sai số lượng, tên quá dài, tên không có trong graph, hay cạnh không tồn tại. `/share` **không bao giờ** trả JSON 422/404. Cùng tinh thần với C-12 cho `/api/path`.
 - Body là nội dung `dist/index.html` với placeholder `<!--OG-->` trong `<head>` được thay thế; phần còn lại của file giữ nguyên.
 - Phán quyết hợp lệ/không hợp lệ đến **duy nhất** từ `validate_path` (§5.3); `/share` không tự validate.
 - **Path hợp lệ** (`validate_path` trả danh sách tên) — placeholder được thay bằng các meta tag:
-  - `og:title` = `"{first} → {last}: {n} bước"` (format đặt trong một hằng số duy nhất; ngôn ngữ phụ thuộc Q-3, vẫn OPEN, đổi được mà không ảnh hưởng contract);
+  - `og:title` = `"{first} → {last}: {n} bước"` (format đặt trong một hằng số duy nhất; ngôn ngữ là tiếng Việt theo Q-3, đã chốt ở v2.5);
   - `og:description` = các tên trên path nối bằng `" → "`;
   - `og:image` = thumbnail của người đầu tiên; **bỏ hẳn tag** nếu thumbnail là `None`;
-  - `og:url` = URL share **dựng lại từ các tên đã validate** bằng `urlencode(..., doseq=True)`, không echo lại chuỗi query thô;
+  - `og:url` = URL share **dựng lại từ các tên đã validate** bằng `urlencode(..., doseq=True)`, không echo lại chuỗi query thô. *(v2.5, Q-6)* `og:url` sử dụng base URL của request hiện tại, gồm scheme, host và `root_path` nếu request có; path `/share` và query được dựng lại từ canonical name đã validate. Không có biến cấu hình `PUBLIC_BASE_URL` ở phiên bản này;
   - `twitter:card` = `summary`.
-- **Path không hợp lệ** (`validate_path` trả `None`) — placeholder được thay bằng **chuỗi rỗng**. Server **không** chèn bộ OG mặc định riêng và không thêm hằng số text nào. *(v2.4)* **"OG meta mặc định của site" được định nghĩa là các meta tag tĩnh đã có sẵn trong `dist/index.html`**; chúng nguyên vẹn vì chỉ placeholder bị thay. Vì không sinh text mới, hành vi này **không phụ thuộc Q-3**.
+- **Path không hợp lệ** (`validate_path` trả `None`) — placeholder được thay bằng **chuỗi rỗng**. Server **không** chèn bộ OG mặc định riêng và không thêm hằng số text nào. *(v2.4)* **"OG meta mặc định của site" được định nghĩa là các meta tag tĩnh đã có sẵn trong `dist/index.html`**; chúng nguyên vẹn vì chỉ placeholder bị thay. Vì không sinh text mới, hành vi này **không phụ thuộc Q-3**. *(v2.5, Q-7)* Các meta tĩnh đó **không** gồm `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` (§5.5): năm property này chỉ do `/share` tạo cho path hợp lệ. Hệ quả: với path không hợp lệ, trang không có năm property này và crawler dùng các meta tĩnh còn lại (ví dụ `<title>`, `description`, `og:site_name`).
+- *(v2.5, Q-7)* Vì `dist/index.html` không chứa năm property trên, HTML trả về chứa mỗi property đó **tối đa một lần**.
 - Trong cả hai trường hợp, HTML trả về **không còn chuỗi `<!--OG-->`**.
 - Frontend tại `/share` hiển thị thông báo "link không còn hợp lệ" theo §5.6; backend không sinh thông báo lỗi trong HTML.
 - Mọi giá trị chèn vào HTML phải qua `html.escape(value, quote=True)`. URL encoding không phải là cơ chế bảo vệ HTML.
 
-### 5.5 Placeholder
-- `frontend/index.html` phải chứa đúng một `<!--OG-->` trong `<head>`.
-- Khi khởi động, server kiểm tra `dist/index.html` có placeholder; nếu không có thì fail fast.
+### 5.5 Placeholder và `dist/index.html` *(viết lại ở v2.5)*
+- `frontend/index.html` và bản build `dist/index.html` phải chứa **đúng một** `<!--OG-->`, nằm **trong `<head>`** (Q-8).
+- Vị trí placeholder là chỗ **duy nhất** server chèn OG meta. Các file này **không** được chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` (Q-7). Đây là yêu cầu đối với frontend, kiểm tra bởi FE-05; server không kiểm tra lúc khởi động.
+- Khi `/share` được bật (§0.3, Q-5), server kiểm tra lúc khởi động và **fail fast** (app không khởi động) nếu:
+  1. `dist/index.html` không tồn tại;
+  2. số lần xuất hiện của `<!--OG-->` khác một (thiếu hoặc thừa);
+  3. `<!--OG-->` không nằm trong `<head>`. "Nằm trong `<head>`" nghĩa là vị trí của placeholder nằm giữa thẻ mở `<head>` (có thể kèm thuộc tính) và thẻ đóng `</head>`; tên thẻ không phân biệt hoa/thường; kiểm tra bằng so vị trí trong chuỗi, không cần parser HTML đầy đủ. *(v2.5, Q-8)*
+- Thông báo lỗi nêu rõ vi phạm và đường dẫn file. Khi `/share` bị tắt tường minh (chế độ Phase 1) không có kiểm tra nào ở mục này.
 
 ### 5.6 Hành vi frontend tại `/share` *(viết lại ở v2.1)*
 1. Đọc `p` bằng `URLSearchParams.getAll("p")`.
@@ -736,7 +768,7 @@ Khi khởi động, loader kiểm tra:
 
 *(v2.3)* G-6, A-5, A-6, A-7 (C-7, C-8) chưa duyệt nên loader **không** kiểm tra; khi được duyệt, thêm vào danh sách trên.
 
-Kiểm tra placeholder `<!--OG-->` (§5.5) là một hàm riêng, **chỉ được gọi khi route `/share` được đăng ký** (pha 2). Ở pha 1, app khởi động được khi chưa có `dist/`. *(v2.2)*
+Kiểm tra `dist/index.html` và placeholder `<!--OG-->` (§5.5) là một hàm riêng, **chỉ được gọi khi `/share` được bật** (chế độ Phase 2+, §0.3); loader dữ liệu ở trên không gọi nó. Ở chế độ Phase 1 (`/share` bị tắt tường minh), app khởi động được khi chưa có `dist/`. *(v2.2, viết lại ở v2.5)* Khi `/share` được bật mà `dist/index.html` thiếu hoặc không hợp lệ → raise lỗi, app không khởi động; không được bỏ route `/share` một cách âm thầm. *(v2.5, Q-5, Q-8)*
 
 Bất kỳ vi phạm nào → raise lỗi với thông báo chỉ rõ tên/entry và vi phạm, app không khởi động. Không tự sửa dữ liệu lúc runtime.
 
@@ -750,7 +782,7 @@ Sau khi validate, loader dựng `ResolverIndex` (§4A) và ghi log (không fail)
 | Nhóm | Pha |
 |---|---|
 | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | 1 |
-| SHR-*, PTH-11, DAT-08 | 2 |
+| SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | 2 |
 | FET-* | 3 |
 | FE-* | 4 |
 
@@ -885,6 +917,7 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | SHR-11 | *(v2)* share URL dựng từ response của search với input `安倍晋三` | chỉ chứa `p=Shinzo+Abe`, không chứa ký tự tiếng Nhật |
 | SHR-12 | *(v2)* `p=安倍晋三` hoặc `p=Abe Shinzo` (alias) trong path có cạnh đúng | không hợp lệ (share không đi qua resolver) |
 | SHR-13 | *(v2.4)* không có `p` nào | 200 `text/html`, OG mặc định (như SHR-03); không phải 422 — đối xứng với PTH-08 |
+| SHR-14 | *(v2.5, Q-6)* path hợp lệ, request tới các base URL khác nhau (khác scheme/host/port; và một request có `root_path`) | `og:url` bắt đầu bằng base URL của request đó (scheme, host, `root_path` nếu có), theo sau là `/share?` và query dựng lại từ tên đã validate; không có cấu hình origin nào khác |
 
 ### 7.6A Path validation (`/api/path` và `validate_path`) *(mới ở v2.1)*
 | ID | Request | Kỳ vọng |
@@ -911,7 +944,7 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | DAT-05 | key của people.json khác graph.json | fail |
 | DAT-06 | tên không ở dạng NFC | fail |
 | DAT-07 | `thumbnail: ""` | fail |
-| DAT-08 | *(pha 2)* `dist/index.html` thiếu `<!--OG-->` khi route `/share` được bật | fail |
+| DAT-08 | *(pha 2; mở rộng ở v2.5, Q-8)* khi `/share` được bật, `dist/index.html` có số `<!--OG-->` khác một (thiếu hoặc thừa), hoặc `<!--OG-->` nằm ngoài `<head>` (cả ba nhóm thiếu / thừa / ngoài `<head>` đều phải có test) | fail khi khởi động, thông báo nêu vi phạm |
 | DAT-09 | dữ liệu hợp lệ | load thành công |
 | DAT-10 | *(v2; phụ thuộc C-7 — chưa duyệt)* canonical name chứa `_` (G-6) | fail |
 | DAT-11 | *(v2)* alias có `target` không phải key của graph (A-1) | fail |
@@ -920,6 +953,8 @@ Công cụ: `pytest` + `fastapi.testclient.TestClient`. Test dùng **fixture nh�
 | DAT-14 | *(v2)* entry trùng lặp hoàn toàn (A-4) hoặc `alias == target` (A-5) | fail. *(v2.3)* Phần A-5 phụ thuộc C-8 (chưa duyệt), không test ở pha 1 |
 | DAT-15 | *(v2; phụ thuộc C-7, C-8 — chưa duyệt)* alias chứa `_` (A-6) hoặc mảng chưa sắp xếp (A-7) | fail |
 | DAT-16 | *(v2)* alias xung đột | load thành công, log số match key mơ hồ |
+| DAT-17 | *(pha 2; v2.5, Q-5)* `/share` được bật (chế độ Phase 2+) nhưng `dist/index.html` không tồn tại | fail khi khởi động, thông báo nêu đường dẫn thiếu; route `/share` không bị bỏ âm thầm |
+| DAT-18 | *(pha 2; v2.5, Q-5)* `enable_share=False` (chế độ Phase 1), không có `dist/` (kể cả khi `dist/index.html` tồn tại nhưng không hợp lệ, `/share` vẫn không được đăng ký và không bị kiểm tra) | app khởi động thành công; `/api/*` hoạt động; không có route `/share` (`GET /share` → 404); không kiểm tra placeholder; kết quả không phụ thuộc biến môi trường hay thư mục làm việc |
 
 ### 7.8 Fetcher (không gọi mạng)
 Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTTP client.
@@ -951,6 +986,7 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 | FE-02 | history hook: thêm, giới hạn số entry, đọc lại khi localStorage rỗng hoặc hỏng (JSON không parse được) mà không crash |
 | FE-03 | *(v2)* xử lý lỗi theo `detail.code` (không parse message): `AMBIGUOUS_NAME` hiển thị `candidates`; chọn một ứng viên thì search lại bằng canonical name của ứng viên đó |
 | FE-04 | *(v2.1)* trang `/share`: gọi `/api/path` với đúng danh sách `p` và không tự validate; `valid=false` và có ≥ 2 phần tử `p` thì gọi `/api/search?from={p[0]}&to={p[-1]}`; `valid=false` với < 2 phần tử thì chỉ hiển thị thông báo |
+| FE-05 | *(v2.5, Q-7, Q-8)* `frontend/index.html` và bản build `dist/index.html` có đúng một `<!--OG-->` nằm trong `<head>`, và không chứa static `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` |
 
 ---
 
@@ -965,6 +1001,7 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
   - graph Japanese Wikipedia hoặc graph riêng theo ngôn ngữ;
   - ngôn ngữ input khác ngoài tiếng Anh và tiếng Nhật;
   - Wikidata làm nguồn alias.
+- *(v2.5, og:url)*: biến cấu hình origin công khai (`PUBLIC_BASE_URL`) cho `og:url` (Q-6).
 - *(v2.1, fetcher)*:
   - chạy song song (concurrency > 1);
   - xác thực bằng bot password hoặc OAuth để có giới hạn cao hơn;
@@ -974,13 +1011,18 @@ Dùng response JSON của MediaWiki API đã ghi sẵn làm fixture và mock HTT
 
 ## 9. Open questions (chưa implement cho tới khi chốt)
 
-- **Q-3 [OPEN]: Ngôn ngữ của `og:title` / UI** (tiếng Việt, tiếng Anh, hay tiếng Nhật). Format đặt trong một hằng số nên có thể đổi sau mà không ảnh hưởng contract.
+Hiện không còn câu hỏi mở. *(v2.5: Q-3 đã chốt.)*
 
 ### Ghi chú kỹ thuật cần review *(v2.3)*
 Không phải quyết định mở; không ảnh hưởng pha 1.
 - **N-1:** với các version đã pin (`fastapi==0.141.1`, `starlette==1.6.0`, `httpx==0.28.1`), `fastapi.testclient.TestClient` phát `StarletteDeprecationWarning` về việc dùng `httpx` cho Starlette test client. Pha 1 **không** thay đổi dependency vì cảnh báo này. Review riêng khi nâng dependency hoặc trước khi mở pha 3 (fetcher dùng `httpx`).
 
 ### Đã chốt
+- **Q-3 (v2.5):** ngôn ngữ của `og:title` / UI ở phiên bản hiện tại là tiếng Việt; format giữ trong một hằng số duy nhất (§5.4).
+- **Q-5 (v2.5):** chế độ `/share` tường minh; Phase 2+ bắt buộc có `dist/index.html`, thiếu → fail fast (§0.3, §5.5, §6.5).
+- **Q-6 (v2.5):** `og:url` dùng base URL của request hiện tại (scheme, host, `root_path` nếu có), không có `PUBLIC_BASE_URL` (§5.4).
+- **Q-7 (v2.5):** `index.html` không chứa static OG property do `/share` tạo (§5.5).
+- **Q-8 (v2.5):** đúng một `<!--OG-->`, nằm trong `<head>` (§5.5).
 - **Q-2 (v2.4):** `/share` luôn trả 200 `text/html` cho mọi input; path không hợp lệ → placeholder `<!--OG-->` được thay bằng chuỗi rỗng và các meta tĩnh của `dist/index.html` giữ nguyên (§5.4). Không trả JSON 422/404 từ `/share`. `/api/path` không đổi (C-12). Pha 2 được mở.
 - **Q-1 (v2.1):** thêm `GET /api/path` (§3.7), dùng chung `validate_path` với `/share` (§5.3).
 - **Q-4 (v2.1):** fetcher tuần tự, concurrency = 1, dưới 5 request/giây (§6.4), theo Robot policy của Wikimedia cho client Action API không xác thực.
