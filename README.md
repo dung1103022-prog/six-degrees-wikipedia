@@ -12,6 +12,11 @@ written spec · latest release `v1.0.2`.
 
 ![Search form, history, and result path](docs/assets/hero.jpg)
 
+![Demo: BFS level-by-level animation and interactive graph](docs/assets/demo.gif)
+
+The real BFS search animating level by level, then a quick pan/zoom on the resulting graph — no
+mocked data, captured against the running app.
+
 Bilingual name resolution returning multiple candidates for an ambiguous match, plus client-side
 search history:
 
