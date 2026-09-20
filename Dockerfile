@@ -10,8 +10,14 @@
 # network, MediaWiki included (ADR-009). The only outside request is the visitor's browser loading
 # thumbnails from the URLs in the data.
 
+# Base images are pinned by digest (not just tag) for reproducible builds: the same tag can point
+# to a different image tomorrow, the digest can't. Bumping either means deliberately re-resolving
+# the tag (`docker manifest inspect node:24-slim` / `python:3.12-slim`) and pasting the new digest
+# here, never floating on the tag; the major version (Node 24 / Python 3.12) is pinned separately
+# on the FROM line itself and does not change with a digest refresh.
+
 # ------------------------------------------------------------------ stage 1: build the frontend
-FROM node:24-slim AS frontend
+FROM node:24-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS frontend
 WORKDIR /build
 
 # Dependencies first, so that this layer is cached until package-lock.json changes.
@@ -23,7 +29,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ------------------------------------------------------------------ stage 2: runtime
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -48,6 +54,14 @@ COPY data/graph.json data/people.json data/aliases.json ./data/
 ENV DATA_DIR=/app/data \
     DIST_DIR=/app/dist \
     PORT=8000
+
+# og:url is built from the current request's base URL, scheme included (SPEC Q-6). Behind a
+# TLS-terminating reverse proxy, uvicorn otherwise only sees a plain-HTTP connection from that
+# proxy, so og:url would wrongly come out as http://. uvicorn already reads FORWARDED_ALLOW_IPS
+# from the environment (no code or CMD change needed here): unset, it defaults to trusting only
+# 127.0.0.1/::1, i.e. today's behavior is unchanged. An operator putting a reverse proxy in front
+# of this container must set FORWARDED_ALLOW_IPS to that proxy's IP or CIDR for X-Forwarded-Proto
+# to be honored, e.g. `-e FORWARDED_ALLOW_IPS=10.0.0.0/8`.
 
 RUN useradd --system --no-create-home --uid 10001 app
 USER app

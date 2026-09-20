@@ -132,6 +132,12 @@ docker run --rm -p 8000:8000 sixth-degree
 The image bundles the official dataset and the built frontend; it never calls the network at
 runtime.
 
+**Behind a reverse proxy:** `og:url` (SPEC Q-6) is built from the current request's base URL,
+scheme included. uvicorn already reads `FORWARDED_ALLOW_IPS` from the environment; unset, it
+trusts only `127.0.0.1`/`::1`, so a TLS-terminating reverse proxy elsewhere on the network would
+make `og:url` wrongly come out as `http://`. Set it to the proxy's IP or CIDR to fix that, e.g.
+`-e FORWARDED_ALLOW_IPS=10.0.0.0/8`. This is opt-in — the default behavior is unchanged.
+
 For local development instead (from the repo root):
 
 ```bash

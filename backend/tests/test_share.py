@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app import paths
 from app.data import DataValidationError
@@ -235,6 +236,24 @@ def test_og_url_uses_request_base_url(base_url, root_path, expected_prefix):
         text = share(c, ["A", "E", "D"])
     url = meta_content(text, "og:url")
     assert url.startswith(expected_prefix), url
+    assert parse_qs(urlparse(url).query) == {"p": ["A", "E", "D"]}
+
+
+@pytest.mark.spec("SHR-14")
+def test_og_url_scheme_from_trusted_proxy_header():
+    """Production terminates TLS in front of uvicorn (a reverse proxy), so the connection
+    uvicorn itself sees is plain HTTP; only a trusted proxy's X-Forwarded-Proto tells it the
+    request was really HTTPS. uvicorn's ProxyHeadersMiddleware is what applies that header in
+    the real deployment; TestClient's ASGI transport bypasses uvicorn entirely, so the
+    middleware is added explicitly here to exercise the same code path Q-6 relies on.
+    """
+    app = create_app(VALID_DIR, dist_dir=DIST)
+    proxied = ProxyHeadersMiddleware(app, trusted_hosts="testclient")  # TestClient's scope client
+    with TestClient(proxied, base_url="http://one.test") as c:
+        r = c.get(f"/share?{q(['A', 'E', 'D'])}", headers={"X-Forwarded-Proto": "https"})
+    assert r.status_code == 200
+    url = meta_content(r.text, "og:url")
+    assert url.startswith("https://one.test/share?"), url
     assert parse_qs(urlparse(url).query) == {"p": ["A", "E", "D"]}
 
 
