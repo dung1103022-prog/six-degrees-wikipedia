@@ -72,7 +72,7 @@ export default function SharePage() {
   }
 
   return (
-    <main>
+    <main className="app-main">
       <h1>Six Degrees of Wikipedia</h1>
       {path.status === "loading" ? <div aria-live="polite">{strings.loading}</div> : null}
       {path.status === "error" ? <p role="alert">{strings.pathFailed(path.reason)}</p> : null}
@@ -91,7 +91,7 @@ function NewSearchView({ search, onChoose }: { search: NewSearch; onChoose: (par
   if (search.status === "none") return null;
   const { from, to } = search.query;
   return (
-    <section>
+    <section className="result">
       <p>{strings.newSearch(from, to)}</p>
       {search.status === "loading" ? <div aria-live="polite">{strings.searching}</div> : null}
       {search.status === "failed" ? <SearchFailureView failure={search.failure} onChoose={onChoose} /> : null}

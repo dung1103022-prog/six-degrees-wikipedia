@@ -19,6 +19,8 @@ export const strings = {
   historyEntry: (from: string, to: string) => `${from} → ${to}`,
   graphLabel: "Đồ thị các bước của lần tìm kiếm",
   graphUnavailable: "Không thể vẽ đồ thị (trình duyệt không hỗ trợ WebGL).",
+  graphLegendPath: "Trên đường đi ngắn nhất",
+  graphLegendOther: "Người khác được khám phá, mờ dần theo khoảng cách",
   // the /share page (SPEC §5.6)
   loading: "Đang tải…",
   invalidLink: "Link không còn hợp lệ.",

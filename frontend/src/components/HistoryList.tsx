@@ -13,11 +13,11 @@ export default function HistoryList({ entries, onPick }: Props) {
   return (
     <section aria-label={strings.historyLabel}>
       <h2>{strings.historyLabel}</h2>
-      <ul>
+      <ul className="chip-list">
         {entries.map((entry, index) => (
           // The same pair can appear twice (SPEC N-4: repeats are not specified), so the index is part of the key.
           <li key={`${index}:${entry.from}→${entry.to}`}>
-            <button type="button" onClick={() => onPick(entry)}>
+            <button type="button" onClick={() => onPick(entry)} className="chip">
               {strings.historyEntry(entry.from, entry.to)}
             </button>
           </li>

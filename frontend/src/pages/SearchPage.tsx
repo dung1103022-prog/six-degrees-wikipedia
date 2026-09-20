@@ -68,14 +68,18 @@ export default function SearchPage() {
   const canSearch = !busy && from.trim() !== "" && to.trim() !== "";
 
   return (
-    <main>
+    <main className="app-main">
       <h1>Six Degrees of Wikipedia</h1>
-      <form onSubmit={submit}>
-        <label htmlFor="search-from">{strings.from}</label>
-        <input id="search-from" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <label htmlFor="search-to">{strings.to}</label>
-        <input id="search-to" value={to} onChange={(e) => setTo(e.target.value)} />
-        <button type="submit" disabled={!canSearch}>
+      <form onSubmit={submit} className="search-form">
+        <div className="field">
+          <label htmlFor="search-from">{strings.from}</label>
+          <input id="search-from" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="search-to">{strings.to}</label>
+          <input id="search-to" value={to} onChange={(e) => setTo(e.target.value)} />
+        </div>
+        <button type="submit" disabled={!canSearch} className="btn">
           {strings.search}
         </button>
       </form>
@@ -91,7 +95,7 @@ export default function SearchPage() {
 
 function Result({ response }: { response: SearchResponse }) {
   return (
-    <section>
+    <section className="result">
       {response.found ? (
         <>
           <p>{strings.pathLength(response.length)}</p>

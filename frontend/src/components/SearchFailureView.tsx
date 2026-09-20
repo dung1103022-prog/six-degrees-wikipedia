@@ -19,10 +19,10 @@ export default function SearchFailureView({ failure, onChoose }: Props) {
   return (
     <>
       <p role="alert">{strings.ambiguous(detail.input, detail.param)}</p>
-      <ul aria-label={strings.candidatesLabel}>
+      <ul aria-label={strings.candidatesLabel} className="chip-list">
         {detail.candidates.map((candidate) => (
           <li key={candidate.name}>
-            <button type="button" onClick={() => onChoose(detail.param, candidate)}>
+            <button type="button" onClick={() => onChoose(detail.param, candidate)} className="chip">
               <PersonThumbnail thumbnail={candidate.thumbnail} />
               {candidate.name}
             </button>

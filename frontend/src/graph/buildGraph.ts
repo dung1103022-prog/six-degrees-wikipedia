@@ -32,12 +32,20 @@ export interface EdgeAttributes {
   onPath: true;
 }
 
-export const RING_SPACING = 100;
+export const RING_SPACING = 130;
 const NODE_SIZE = 2;
 const PATH_NODE_SIZE = 8;
-const NODE_COLOR = "#8da0b5";
-const PATH_COLOR = "#e4572e";
+export const NODE_COLOR = "#8da0b5"; // exported so the legend swatch matches the drawing exactly
+export const PATH_COLOR = "#e4572e";
 const PATH_EDGE_SIZE = 3;
+// r,g,b of NODE_COLOR: nodes further from the start fade out, so a ring's depth (level) is visible
+// at a glance, not just its radius. Purely presentational, like the rest of this layout (see above).
+const NODE_RGB = "141, 160, 181";
+
+function levelFade(level: number): string {
+  const alpha = Math.max(0.35, 1 - level * 0.12);
+  return `rgba(${NODE_RGB}, ${alpha})`;
+}
 
 export function buildGraph(response: SearchResponse): Graph<NodeAttributes, EdgeAttributes> {
   const graph = new Graph<NodeAttributes, EdgeAttributes>({ type: "directed", multi: false, allowSelfLoops: false });
@@ -81,5 +89,5 @@ export function buildGraph(response: SearchResponse): Graph<NodeAttributes, Edge
 function nodeAttributes(name: string, onPath: boolean, level: number, x: number, y: number): NodeAttributes {
   return onPath
     ? { x, y, size: PATH_NODE_SIZE, color: PATH_COLOR, zIndex: 1, level, onPath, label: name, forceLabel: true }
-    : { x, y, size: NODE_SIZE, color: NODE_COLOR, zIndex: 0, level, onPath };
+    : { x, y, size: NODE_SIZE, color: levelFade(level), zIndex: 0, level, onPath };
 }

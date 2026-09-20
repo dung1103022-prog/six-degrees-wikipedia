@@ -1,0 +1,210 @@
+/* Phase 5 step 1: base layout + GraphView readability. Presentation only, no behavior here.
+   Palette matches the colors already used in the graph (buildGraph.ts) and PersonThumbnail. */
+:root {
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-border: #d9dde3;
+  --color-text: #1f2933;
+  --color-muted: #5b6673;
+  --color-node: #8da0b5;
+  --color-path: #e4572e;
+  --color-path-contrast: #ffffff;
+  --graph-height: 480px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+.app-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 20px;
+}
+
+h2 {
+  font-size: 1rem;
+  margin: 0 0 8px;
+  color: var(--color-muted);
+}
+
+/* ------------------------------------------------------------------------- search form */
+
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.search-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+}
+
+.search-form label {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.search-form input {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.search-form input:focus-visible {
+  outline: 2px solid var(--color-path);
+  outline-offset: 1px;
+}
+
+.btn {
+  padding: 9px 18px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-path);
+  color: var(--color-path-contrast);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  background: var(--color-border);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.btn:not(:disabled):hover {
+  filter: brightness(0.92);
+}
+
+/* ------------------------------------------------------------------------- chip lists (history, candidates) */
+
+.chip-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chip:hover {
+  border-color: var(--color-path);
+}
+
+/* ------------------------------------------------------------------------- path (the found path itself) */
+
+.path-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.path-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.path-item:not(:last-child)::after {
+  content: "→";
+  margin-left: 8px;
+  color: var(--color-muted);
+}
+
+/* ------------------------------------------------------------------------- GraphView */
+
+.graph-wrap {
+  margin: 16px 0;
+}
+
+.graph-canvas {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.graph-legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------------------- narrow / mobile */
+
+@media (max-width: 640px) {
+  .app-main {
+    padding: 16px 14px 32px;
+  }
+
+  .search-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  :root {
+    --graph-height: 320px;
+  }
+}

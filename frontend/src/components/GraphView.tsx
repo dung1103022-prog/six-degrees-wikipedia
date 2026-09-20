@@ -5,13 +5,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 import { EdgeArrowProgram, type EdgeProgramType } from "sigma/rendering";
 import type { SearchResponse } from "../api/types";
-import { buildGraph, type EdgeAttributes, type NodeAttributes } from "../graph/buildGraph";
+import { buildGraph, NODE_COLOR, PATH_COLOR, type EdgeAttributes, type NodeAttributes } from "../graph/buildGraph";
+import { drawPathLabel } from "../graph/label";
 import { edgeDisplay, nodeDisplay } from "../graph/style";
 import { useLevelAnimation } from "../graph/useLevelAnimation";
 import { strings } from "../ui/strings";
 
-// Sigma refuses a container without a height, so the size is fixed here.
-const CONTAINER_STYLE = { width: "100%", height: 480, border: "1px solid #d9dde3", borderRadius: 4 } as const;
+// Sigma refuses a container without a height, so a height is set here; --graph-height (index.css)
+// makes it smaller on narrow viewports without touching this (a CSS class alone cannot override an
+// inline style, and the height must stay inline: Sigma reads it from the element as soon as it mounts).
+const CONTAINER_STYLE = { width: "100%", height: "var(--graph-height, 480px)" } as const;
+
+// Sigma fits the graph to the container using only node positions, then draws labels past that
+// (drawPathLabel puts each one to the right of its node, see ../graph/label.ts): the outermost
+// node's label — the end of the path — can run past the canvas edge and get clipped. `stagePadding`
+// (a Sigma setting) reserves screen-pixel margin around the fit so the label has room to fit inside
+// the canvas too. A wide margin on the already-tight mobile canvas would just push nodes closer
+// together and fight the anti-overlap staggering in ../graph/label.ts, so only widen it when the
+// container is wide enough to spare the room; same width threshold as the label's own compact mode.
+const COMPACT_CANVAS_WIDTH_PX = 480;
+const WIDE_STAGE_PADDING = 60;
+const COMPACT_STAGE_PADDING = 50;
 
 export default function GraphView({ response }: { response: SearchResponse }) {
   const container = useRef<HTMLDivElement>(null);
@@ -30,6 +44,8 @@ export default function GraphView({ response }: { response: SearchResponse }) {
         zIndex: true, // the highlighted path is drawn over the other nodes
         renderEdgeLabels: false,
         defaultEdgeType: "arrow",
+        defaultDrawNodeLabel: drawPathLabel, // path names are staggered so they do not overlap
+        stagePadding: element.clientWidth < COMPACT_CANVAS_WIDTH_PX ? COMPACT_STAGE_PADDING : WIDE_STAGE_PADDING,
         // Sigma types its arrow program for untyped attributes; ours are typed (same shape at run time).
         edgeProgramClasses: { arrow: EdgeArrowProgram as unknown as EdgeProgramType<NodeAttributes, EdgeAttributes> },
       });
@@ -55,5 +71,19 @@ export default function GraphView({ response }: { response: SearchResponse }) {
   }, [graph, visible, unavailable]);
 
   if (unavailable) return <p role="note">{strings.graphUnavailable}</p>;
-  return <div ref={container} role="img" aria-label={strings.graphLabel} style={CONTAINER_STYLE} />;
+  return (
+    <div className="graph-wrap">
+      <div ref={container} role="img" aria-label={strings.graphLabel} className="graph-canvas" style={CONTAINER_STYLE} />
+      <p className="graph-legend">
+        <span className="graph-legend-item">
+          <span className="graph-legend-dot" style={{ background: PATH_COLOR }} aria-hidden="true" />
+          {strings.graphLegendPath}
+        </span>
+        <span className="graph-legend-item">
+          <span className="graph-legend-dot" style={{ background: NODE_COLOR }} aria-hidden="true" />
+          {strings.graphLegendOther}
+        </span>
+      </p>
+    </div>
+  );
 }
