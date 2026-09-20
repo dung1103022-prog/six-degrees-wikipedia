@@ -1,12 +1,14 @@
 """Test infrastructure for Phase 1 (SPEC §0.2).
 
-- Blocks all outbound network connections for the whole test session.
+- Blocks all outbound network connections for the whole test session, except loopback
+  (127.0.0.1, ::1), which asyncio needs internally on Windows (SPEC §9, N-2).
 - Validates that every @pytest.mark.spec("ID") refers to an ID defined in SPEC.md §7.
 - Reports required Phase 1 test IDs (SPEC §7.0: phase IDs minus IDs that fully depend
   on a not-yet-approved decision) that have no test yet.
 """
 from __future__ import annotations
 
+import ipaddress
 import re
 import socket
 from pathlib import Path
@@ -29,18 +31,38 @@ _real_connect = socket.socket.connect
 _real_connect_ex = socket.socket.connect_ex
 
 
-def _guard(sock: socket.socket) -> None:
-    if sock.family != getattr(socket, "AF_UNIX", object()):
-        raise NetworkBlockedError("Network access is blocked in tests (SPEC §0.2)")
+def _is_loopback_address(address: object) -> bool:
+    """True only for a literal loopback IP (127.0.0.0/8 or ::1), never for a hostname: resolving
+    a hostname would itself be network activity, which the guard must not perform (SPEC §9, N-2
+    only carves out 127.0.0.1 / ::1, not "localhost" or any other name)."""
+    if not isinstance(address, tuple) or not address or not isinstance(address[0], str):
+        return False
+    host = address[0].split("%", 1)[0]  # strip an IPv6 zone id, e.g. "fe80::1%eth0"
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _guard(sock: socket.socket, address: object) -> None:
+    if sock.family == getattr(socket, "AF_UNIX", object()):
+        return
+    if sock.family in (socket.AF_INET, socket.AF_INET6) and _is_loopback_address(address):
+        return
+    raise NetworkBlockedError("Network access is blocked in tests (SPEC §0.2)")
+
+
+def _address_arg(args: tuple, kwargs: dict):
+    return args[0] if args else kwargs.get("address")
 
 
 def _blocked_connect(self, *args, **kwargs):
-    _guard(self)
+    _guard(self, _address_arg(args, kwargs))
     return _real_connect(self, *args, **kwargs)
 
 
 def _blocked_connect_ex(self, *args, **kwargs):
-    _guard(self)
+    _guard(self, _address_arg(args, kwargs))
     return _real_connect_ex(self, *args, **kwargs)
 
 
