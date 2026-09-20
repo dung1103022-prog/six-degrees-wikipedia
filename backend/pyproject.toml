@@ -9,6 +9,12 @@ dependencies = [
   "pydantic==2.13.5",
   "starlette==1.6.0",
   "uvicorn==0.53.0",
+  # Transitive dependency of starlette, pinned explicitly (SPEC §9, N-1): anyio 4.15.0 made
+  # `anyio.abc.BlockingPortal` a deprecated alias that warns on access, and starlette 1.6.0
+  # (the latest release) still accesses it that way at import time of starlette.testclient.
+  # 4.14.2 is the release before that alias was introduced; it still satisfies starlette's
+  # `anyio<5,>=3.6.2` and httpx2's `anyio>=4.10`.
+  "anyio==4.14.2",
 ]
 
 [project.optional-dependencies]
@@ -19,7 +25,11 @@ fetcher = [
 ]
 test = [
   "pytest==9.1.1",
+  # fetcher tests (test_fetcher.py, fakewiki.py) import httpx directly to mock its transport.
   "httpx==0.28.1",
+  # starlette.testclient (SPEC §9, N-1) prefers httpx2 and warns when it falls back to httpx;
+  # installing it removes that warning. Only used through fastapi.testclient.TestClient.
+  "httpx2==2.13.0",
 ]
 
 [tool.pytest.ini_options]
