@@ -15,3 +15,6 @@ data-pilot/
 .fetch-staging-*/
 data-pilot*/
 node_modules/
+
+# Archify architecture-diagram artifacts (generated on request, not part of the shipped repo).
+archify/

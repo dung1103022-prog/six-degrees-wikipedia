@@ -10,6 +10,13 @@ written spec · latest release `v1.0.2`.
 
 ## Screenshot / demo
 
+![Search form, history, and result path](docs/assets/hero.jpg)
+
+Bilingual name resolution returning multiple candidates for an ambiguous match, plus client-side
+search history:
+
+![Search history and ambiguous-name candidates](docs/assets/history-candidate.jpg)
+
 No hosted demo is running for this repo yet — it's built to run in one command locally (see
 [Docker / local setup](#docker--local-setup) below), or via `docker build && docker run` for a
 production-like environment. What you'd see: a two-field search form, a chip-style search history,
