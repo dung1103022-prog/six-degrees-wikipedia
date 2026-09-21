@@ -23,7 +23,9 @@ export const strings = {
   graphLegendStart: "Start",
   graphLegendEnd: "End",
   graphLegendPath: "On the shortest path",
-  graphLegendOther: "Other people explored, fading with distance",
+  graphLegendOther: "Other people explored",
+  graphResetView: "Reset view",
+  graphPanHint: "Click the view, then use the arrow keys or WASD to pan",
   // the /share page (SPEC §5.6)
   loading: "Loading…",
   invalidLink: "This link is no longer valid.",

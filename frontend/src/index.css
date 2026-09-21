@@ -469,6 +469,43 @@ h2 {
   pointer-events: none;
 }
 
+/* ------------------------------------------------------------------------- pan/reset controls
+   (design: 2026-09-21 follow-up — rotate/zoom already come free from OrbitControls; this adds
+   panning with the arrow keys and WASD, plus a way back to the starting view). */
+
+.graph-canvas {
+  cursor: grab;
+}
+
+.graph-canvas:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.graph-reset-btn {
+  position: absolute;
+  bottom: var(--space-sm);
+  right: var(--space-sm);
+  padding: 4px var(--space-sm);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-none);
+  font-size: 12px;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.graph-reset-btn:hover,
+.graph-reset-btn:focus-visible {
+  color: var(--color-body);
+}
+
+.graph-pan-hint {
+  margin: var(--space-xs) 0 0;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
 /* ------------------------------------------------------------------------- Start/End Person combobox
    (A–Z suggestion dropdown, design request 2026-09-21; ../lib/people.ts) */
 

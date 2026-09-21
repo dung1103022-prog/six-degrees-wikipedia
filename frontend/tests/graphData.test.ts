@@ -3,7 +3,7 @@
 // need no WebGL; 3d-force-graph/Three is not involved.
 // (No @spec tag: SPEC §7 has no test ID for the graph, and ADR-014 keeps WebGL out of these tests.)
 import { describe, expect, it } from "vitest";
-import { buildGraph, EXPLORED_COLOR, PATH_COLOR, START_COLOR, END_COLOR, type GraphData3D, type Node3D } from "../src/graph/buildGraph";
+import { buildGraph, EXPLORED_COLOR, PATH_COLOR, START_COLOR, END_COLOR, SHELL_WIDTH as BAND_SHELL_WIDTH, type GraphData3D, type Node3D } from "../src/graph/buildGraph";
 import { visibleGraph } from "../src/graph/style";
 import { LEVELS, PATH, RESPONSE, makeResponse } from "./helpers/graph";
 
@@ -140,10 +140,11 @@ describe("buildGraph: semantic roles (start / end / path / explored)", () => {
   });
 });
 
-// Design (2026-09-21, "hình cầu 3D xoay được"): a rotatable 3D sphere, not a flat 2D scatter — but
-// depth from the start must still read at a glance, so a level's explored nodes live on their own
-// spherical shell, and no two levels' shells ever overlap.
-describe("buildGraph: layout (path on a line through the centre, explored nodes on spherical shells)", () => {
+// Design (2026-09-21, "hình cầu 3D xoay được"; zigzag over a straight line, 2026-09-21 follow-up):
+// a rotatable 3D sphere, not a flat 2D scatter, and the path is not a special case of the layout
+// either — every node (path or explored) gets one fixed spot on its own level's spherical shell, and
+// no two levels' shells ever overlap, so depth still reads as the graph is rotated.
+describe("buildGraph: layout (every node fixed on its level's spherical shell; the path zigzags between shells)", () => {
   it("puts the start in the centre", () => {
     const graph = buildGraph(RESPONSE);
     const s = nodeOf(graph, "S");
@@ -152,35 +153,39 @@ describe("buildGraph: layout (path on a line through the centre, explored nodes 
     expect(s.z).toBeCloseTo(0);
   });
 
-  it("puts the whole path on one straight line through the centre, each step further out", () => {
+  it("does not put the path on a straight line: at least one non-start path node is off the centre line", () => {
     const graph = buildGraph(RESPONSE);
-    const radii = PATH.map((n) => dist(graph, n));
-    PATH.forEach((n) => {
-      expect(nodeOf(graph, n).y).toBeCloseTo(0);
-      expect(nodeOf(graph, n).z).toBeCloseTo(0);
-    });
-    PATH.slice(1).forEach((n) => expect(nodeOf(graph, n).x).toBeGreaterThan(0));
-    for (let i = 1; i < radii.length; i++) expect(radii[i]!).toBeGreaterThan(radii[i - 1]!);
+    const offLine = PATH.slice(1).some((n) => Math.abs(nodeOf(graph, n).y) > 1e-6 || Math.abs(nodeOf(graph, n).z) > 1e-6);
+    expect(offLine).toBe(true);
   });
 
-  it("keeps a level's explored nodes closer to the centre than the next level's, even with the scatter", () => {
+  it("places a path node exactly like an explored node of the same level: same shell, same formula", () => {
+    const graph = buildGraph(RESPONSE); // P1 is a path node on level 1, alongside explored a1/a2
+    const p1 = nodeOf(graph, "P1");
+    const shellMin = 1 * BAND_SHELL_WIDTH;
+    const shellMax = shellMin + BAND_SHELL_WIDTH * 0.88;
+    expect(dist(graph, "P1")).toBeGreaterThanOrEqual(shellMin);
+    expect(dist(graph, "P1")).toBeLessThan(shellMax);
+    expect(p1.level).toBe(1);
+  });
+
+  it("keeps each level's nodes (path and explored alike) further from the centre than the previous level's", () => {
     const graph = buildGraph(RESPONSE);
-    const exploredByLevel = LEVELS.map((level) => level.filter((n) => !PATH.includes(n)));
     const maxRadius = (list: string[]) => Math.max(...list.map((n) => dist(graph, n)));
     const minRadius = (list: string[]) => Math.min(...list.map((n) => dist(graph, n)));
-    for (let k = 1; k < exploredByLevel.length; k++) {
-      const prev = exploredByLevel[k - 1]!;
-      const cur = exploredByLevel[k]!;
+    for (let k = 1; k < LEVELS.length; k++) {
+      const prev = LEVELS[k - 1]!.filter((n) => n !== "S"); // S is pinned to the exact centre, not its shell
+      const cur = LEVELS[k]!;
       if (prev.length === 0 || cur.length === 0) continue;
       expect(minRadius(cur)).toBeGreaterThan(maxRadius(prev));
     }
   });
 
-  it("scatters explored nodes over the whole sphere surface, not flat on one plane", () => {
+  it("scatters nodes over the whole sphere surface, not flat on one plane", () => {
     const graph = buildGraph(RESPONSE);
-    const explored = graph.nodes.filter((n) => n.role === "explored");
-    expect(explored.length).toBeGreaterThan(2);
-    const zs = explored.map((n) => n.z);
+    const notStart = graph.nodes.filter((n) => n.role !== "start");
+    expect(notStart.length).toBeGreaterThan(2);
+    const zs = notStart.map((n) => n.z);
     expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(0); // not all z === 0: a real sphere, not a disc
   });
 

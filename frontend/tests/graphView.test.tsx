@@ -4,11 +4,13 @@
 // levels revealed one by one, a hover label for every node, cleanup, and that nothing is fetched.
 // The panel is mounted even with `response={null}` (design: 2026-09-21, "luôn hiện"), so several
 // tests below render that way first.
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Matrix4, Vector3 } from "three";
 import GraphView from "../src/components/GraphView";
 import { buildGraph, type Node3D } from "../src/graph/buildGraph";
 import { LEVEL_MS } from "../src/graph/useLevelAnimation";
+import { strings } from "../src/ui/strings";
 import { LEVELS, PATH, RESPONSE, makeResponse } from "./helpers/graph";
 
 // tests/setup.ts replaces GraphView for every other test; this file needs the real one.
@@ -21,10 +23,24 @@ interface GraphSnapshot {
   links: { id: string; source: string; target: string; color: string; level: number }[];
 }
 
+interface FakeControls {
+  target: Vector3;
+  update: ReturnType<typeof vi.fn>;
+  listenToKeyEvents: ReturnType<typeof vi.fn>;
+}
+
+interface FakeCamera {
+  position: Vector3;
+  matrixWorld: Matrix4;
+}
+
 interface FakeFG {
   element: HTMLElement;
   data: GraphSnapshot;
   calls: Record<string, unknown[][]>;
+  cam: FakeCamera;
+  ctrl: FakeControls;
+  homePosition: { x: number; y: number; z: number };
   _destructor: ReturnType<typeof vi.fn>;
 }
 
@@ -33,12 +49,26 @@ vi.mock("3d-force-graph", () => {
     element: HTMLElement;
     data: GraphSnapshot = { nodes: [], links: [] };
     calls: Record<string, unknown[][]> = {};
+    // A fixed, identity-oriented starting camera (matrixWorld left as the identity matrix), so a
+    // pan's resulting position is exact and predictable to assert on, not just "changed".
+    cam: FakeCamera = { position: new Vector3(0, 0, 300), matrixWorld: new Matrix4() };
+    ctrl: FakeControls = { target: new Vector3(0, 0, 0), update: vi.fn(), listenToKeyEvents: vi.fn() };
+    homePosition = { x: 0, y: 0, z: 300 };
     _destructor = vi.fn();
 
     constructor(element: HTMLElement) {
       if (h.failToStart) throw new Error("3d-force-graph: could not create a WebGL context");
       this.element = element;
       h.instances.push(this as unknown as FakeFG);
+    }
+
+    camera(): FakeCamera { return this.cam; }
+    controls(): FakeControls { return this.ctrl; }
+
+    cameraPosition(position?: { x: number; y: number; z: number }, lookAt?: unknown, ms?: unknown): this | { x: number; y: number; z: number } {
+      if (position === undefined) return this.homePosition;
+      this.homePosition = position;
+      return this.chain("cameraPosition", [position, lookAt, ms]);
     }
 
     private chain(name: string, args: unknown[]): this {
@@ -180,5 +210,53 @@ describe("GraphView", () => {
     render(<GraphView response={RESPONSE} />);
     advance(LEVEL_MS * 5);
     expect(h.instances[0]!.data.nodes).toHaveLength(buildGraph(RESPONSE).nodes.length);
+  });
+
+  it("enables the arrow keys' own panning on the canvas element itself, not the whole window (design: 2026-09-21 follow-up)", () => {
+    render(<GraphView response={null} />);
+    const fg = h.instances[0]!;
+    expect(fg.ctrl.listenToKeyEvents).toHaveBeenCalledTimes(1);
+    expect(fg.ctrl.listenToKeyEvents).toHaveBeenCalledWith(fg.element);
+  });
+
+  it("pans the camera and its orbit target together on W/A/S/D, relative to the camera's own facing", () => {
+    render(<GraphView response={null} />);
+    const fg = h.instances[0]!;
+    const before = fg.cam.position.clone();
+
+    fireEvent.keyDown(fg.element, { code: "KeyD" }); // matrixWorld is the identity: "right" is +x
+    expect(fg.cam.position.x).toBeGreaterThan(before.x);
+    expect(fg.cam.position.y).toBeCloseTo(before.y);
+    expect(fg.cam.position.z).toBeCloseTo(before.z);
+    expect(fg.ctrl.target.x).toBeGreaterThan(0);
+    expect(fg.ctrl.update).toHaveBeenCalled();
+
+    const afterD = fg.cam.position.clone();
+    fireEvent.keyDown(fg.element, { code: "KeyW" }); // "up" is +y
+    expect(fg.cam.position.y).toBeGreaterThan(afterD.y);
+    expect(fg.cam.position.x).toBeCloseTo(afterD.x); // KeyW alone does not also move x
+  });
+
+  it("ignores keys other than W/A/S/D (arrow-key panning is OrbitControls' own job, see above)", () => {
+    render(<GraphView response={null} />);
+    const fg = h.instances[0]!;
+    const before = fg.cam.position.clone();
+    fireEvent.keyDown(fg.element, { code: "Enter" });
+    expect(fg.cam.position).toEqual(before);
+    expect(fg.ctrl.update).not.toHaveBeenCalled();
+  });
+
+  it('a "Reset view" button flies the camera back to where it started, looking at the centre', () => {
+    render(<GraphView response={RESPONSE} />);
+    const fg = h.instances[0]!;
+    const home = fg.homePosition; // captured right after mount, before any interaction
+
+    fireEvent.keyDown(fg.element, { code: "KeyD" }); // move away from home first
+    fireEvent.click(screen.getByRole("button", { name: strings.graphResetView }));
+
+    const resetCall = fg.calls.cameraPosition?.at(-1);
+    expect(resetCall?.[0]).toEqual(home);
+    expect(resetCall?.[1]).toEqual({ x: 0, y: 0, z: 0 }); // looks back at the start, the sphere's centre
+    expect(typeof resetCall?.[2]).toBe("number"); // an animated transition, not a hard jump
   });
 });

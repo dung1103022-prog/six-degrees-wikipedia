@@ -5,13 +5,14 @@
 //  * a node per name of `levels`; `level` is its BFS depth (levels[k] = discovered at depth k);
 //  * the only links are those of the found path, directed and in path order: the response does not
 //    say which node discovered which, so nothing else is drawn as a link;
-//  * layout (design: 2026-09-21, "hình cầu 3D xoay được"): the whole path lies on one straight line
-//    through the centre, in path order (same idea as the pre-v2.17 2D layout). Every other node sits
-//    on the surface of a spherical *shell* that belongs to its own level — shell k never overlaps
-//    shell k+1, so depth still reads as the graph is rotated — with its exact spot on that shell (and
-//    how deep into the shell's thin band) coming from a deterministic hash of the node's own name,
-//    for an organic, non-uniform-looking field of points rather than a perfect lattice. Layout,
-//    colours and sizes are the implementation's choice and not part of any contract.
+//  * layout (design: 2026-09-21; zigzag chosen over a straight line, 2026-09-21 follow-up): the
+//    start sits exactly at the centre of the sphere. Every other node — path or explored alike — has
+//    one FIXED spot on the spherical *shell* that belongs to its own level (shell k never overlaps
+//    shell k+1, so depth still reads as the graph is rotated), from a deterministic hash of the
+//    node's own name. The found path is just the sequence of links between those fixed spots, so it
+//    zigzags from shell to shell instead of running along one straight ray — the path is no longer a
+//    special case of the layout, only of the colouring/sizing (see nodeOf). Layout, colours and
+//    sizes are the implementation's choice and not part of any contract.
 import type { SearchResponse } from "../api/types";
 
 // Four semantic roles (design: sixth-degree.ranisaro.com-DESIGN.md, "Legend / Status Indicators"),
@@ -57,13 +58,11 @@ export interface GraphData3D {
   links: Link3D[];
 }
 
-// One level's explored nodes sit on the spherical shell [k * SHELL_WIDTH, k * SHELL_WIDTH +
-// SHELL_WIDTH * SHELL_FILL); SHELL_FILL < 1 leaves a gap so no two consecutive shells can ever
-// overlap, whatever the hash gives.
+// A level's nodes sit on the spherical shell [k * SHELL_WIDTH, k * SHELL_WIDTH + SHELL_WIDTH *
+// SHELL_FILL); SHELL_FILL < 1 leaves a gap so no two consecutive shells can ever overlap, whatever
+// the hash gives. Applies to every node of that level — path and explored alike (see `placeOnShell`).
 export const SHELL_WIDTH = 90;
 const SHELL_FILL = 0.88;
-// Spacing between consecutive nodes of the path along its centre line.
-export const PATH_SPACING = 140;
 const NODE_VAL = 1;
 const PATH_NODE_VAL = 5;
 // exported so the legend swatches match the drawing exactly (design: Start/End/Path/Explored)
@@ -81,6 +80,20 @@ function hashUnit(seed: string): number {
     h = Math.imul(h, 0x01000193);
   }
   return (h >>> 0) / 0xffffffff;
+}
+
+/** A node's one fixed spot on its level's spherical shell: the radius is jittered inside the shell
+ * band, the two angles are hashed independently and combined with an inverse-cosine colatitude so
+ * points spread evenly over the *whole* sphere surface (not just its equator, the way a plain
+ * 2D-angle-in-3D would). Used for every node of a level — path and explored are laid out identically;
+ * only the start is special-cased (see buildGraph), so it sits exactly at the sphere's centre. */
+function placeOnShell(name: string, shellIndex: number): { x: number; y: number; z: number } {
+  const shellMin = shellIndex * SHELL_WIDTH;
+  const shellSpan = SHELL_WIDTH * SHELL_FILL;
+  const radius = shellMin + hashUnit(`r:${name}`) * shellSpan;
+  const theta = 2 * Math.PI * hashUnit(`theta:${name}`); // azimuth, full circle
+  const phi = Math.acos(1 - 2 * hashUnit(`phi:${name}`)); // colatitude, uniform over the sphere
+  return { x: radius * Math.sin(phi) * Math.cos(theta), y: radius * Math.sin(phi) * Math.sin(theta), z: radius * Math.cos(phi) };
 }
 
 export function buildGraph(response: SearchResponse): GraphData3D {
@@ -102,44 +115,28 @@ export function buildGraph(response: SearchResponse): GraphData3D {
     if (name === endName) return "end";
     return onPath.has(name) ? "path" : "explored";
   };
-  const pathIndex = new Map(pathNames.map((name, i) => [name, i]));
+  // The start is the one node placed by hand, at the exact centre (radius 0): everything else,
+  // path or explored, gets its fixed spot from `placeOnShell` — see the file comment above.
+  const positionOf = (name: string, r: NodeRole, shellIndex: number): { x: number; y: number; z: number } =>
+    r === "start" ? { x: 0, y: 0, z: 0 } : placeOnShell(name, shellIndex);
 
   response.levels.forEach((level, k) => {
     // A name is drawn once (SPEC I-2): the first level that lists it wins.
     const members = level.nodes.filter((name, i) => !nodeById.has(name) && level.nodes.indexOf(name) === i);
-    const onLevelPath = members.filter((name) => onPath.has(name));
-    const explored = members.filter((name) => !onPath.has(name));
-
-    // Path members sit on the centre line at their own position IN THE PATH (never at `k`), so the
-    // whole path draws as one straight, strictly outward line even if a level lists more than one of
-    // its nodes.
-    onLevelPath.forEach((name) => {
-      const i = pathIndex.get(name)!;
-      addNode(nodeOf(name, true, role(name), k, i * PATH_SPACING, 0, 0));
-    });
-
-    // Explored members: scattered over this level's own spherical shell. The radius is jittered
-    // inside the shell band (as before); the two angles are hashed independently and combined with
-    // an inverse-cosine colatitude so points spread evenly over the *whole* sphere surface (not just
-    // its equator, the way a plain 2D-angle-in-3D would).
-    const shellMin = k * SHELL_WIDTH;
-    const shellSpan = SHELL_WIDTH * SHELL_FILL;
-    explored.forEach((name) => {
-      const radius = shellMin + hashUnit(`r:${name}`) * shellSpan;
-      const theta = 2 * Math.PI * hashUnit(`theta:${name}`); // azimuth, full circle
-      const phi = Math.acos(1 - 2 * hashUnit(`phi:${name}`)); // colatitude, uniform over the sphere
-      const x = radius * Math.sin(phi) * Math.cos(theta);
-      const y = radius * Math.sin(phi) * Math.sin(theta);
-      const z = radius * Math.cos(phi);
-      addNode(nodeOf(name, false, "explored", k, x, y, z));
+    members.forEach((name) => {
+      const r = role(name);
+      const { x, y, z } = positionOf(name, r, k);
+      addNode(nodeOf(name, onPath.has(name), r, k, x, y, z));
     });
   });
 
   // `levels` always lists the path (SPEC §4.3-4.4); if it did not, the node is still drawn, on the
-  // centre line at its own position in the path.
+  // shell for its own position in the path (its BFS level is unknown, so the path index stands in).
   pathNames.forEach((name, i) => {
     if (nodeById.has(name)) return;
-    addNode(nodeOf(name, true, role(name), i, i * PATH_SPACING, 0, 0));
+    const r = role(name);
+    const { x, y, z } = positionOf(name, r, i);
+    addNode(nodeOf(name, true, r, i, x, y, z));
   });
 
   for (let i = 0; i + 1 < pathNames.length; i++) {

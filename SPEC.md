@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.17 (mở lại và chốt lại Q-14: đồ thị đổi sang `3d-force-graph`/Three.js, hình cầu 3D xoay được, hover hiện tên mỗi node; ô "Network Visualization" luôn được mount kể cả trước khi tìm kiếm; path trong "Shortest path" liên kết `wiki_url`; header giữa trang theo ảnh tham khảo; **không đổi contract HTTP**)
+**Version:** 2.18 (layout đồ thị: path zích zắc theo vị trí cố định trên vỏ cầu thay vì một đường thẳng qua tâm; thêm pan bằng phím mũi tên/WASD và nút "Reset view"; cả hai vẫn nằm trong phần layout/tương tác do implementation quyết định của ADR-014, **không đổi contract HTTP**, không mở lại quyết định nào)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,15 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.18 — Layout path zích zắc; pan (mũi tên/WASD) + nút Reset view
+
+Quyết định nguồn: chủ project, 2026-09-21. Chỉ Phase 4 (frontend), phần layout/tương tác của đồ thị mà ADR-014 đã giao cho implementation tự quyết (§"Đồ thị") — **không mở lại Q-14, không đổi contract HTTP** của `/api/*` hay `/share`.
+
+- **Layout: path zích zắc thay vì một đường thẳng qua tâm.** Mỗi node — dù là path hay explored — giờ có đúng một vị trí cố định trên vỏ cầu của level nó (cùng công thức hash theo level như node explored); chỉ riêng node bắt đầu (start) được đặt cứng tại đúng tâm hình cầu. Path không còn là một trường hợp layout riêng, chỉ còn là một trường hợp tô màu/kích thước riêng (route qua các vị trí cố định đó theo đúng thứ tự BFS nên nhìn zích zắc giữa các lớp vỏ thay vì một tia thẳng). `frontend/src/graph/buildGraph.ts` viết lại phần layout; không đổi `Node3D`/`Link3D`/`GraphData3D`, không đổi `style.ts`, không đổi `GraphView.tsx` phần dựng dữ liệu.
+- **Pan bằng phím mũi tên và WASD (mới).** Xoay (kéo chuột) và zoom (lăn chuột/pinch) vẫn từ `OrbitControls` có sẵn của `3d-force-graph`. Phím mũi tên dùng cơ chế pan bằng phím có sẵn nhưng tắt mặc định của `OrbitControls` (`listenToKeyEvents`), còn WASD dùng một handler riêng (vì `OrbitControls` chỉ nghe một bộ phím cố định tại một thời điểm) dịch chuyển camera và điểm neo (`target`) cùng lúc theo hướng camera đang nhìn. Cả hai chỉ nhận phím khi chính khung canvas đang có focus (`tabIndex`, listener gắn trên phần tử canvas, không phải `window`), nên không đụng tới việc gõ phím ở ô Start/End Person hay bất kỳ đâu khác trên trang.
+- **Nút "Reset view" (mới).** Đưa camera bay mượt (600ms) về đúng khung hình lúc mới mount (trước khi có tương tác nào) và nhìn lại vào tâm hình cầu (node start).
+- **Không thay đổi:** mọi contract HTTP; Q-3 (v2.16), Q-14 (v2.17, chỉ phần thư viện vẽ) không đổi; ADR-014 (mục "Đồ thị") cập nhật câu mô tả layout cho khớp thực tế mới, không phải một quyết định mới.
 
 ### v2.17 — Mở lại và chốt lại Q-14 (đồ thị 3D xoay được); ô Network Visualization luôn hiện; path liên kết Wikipedia; header giữa trang
 
@@ -427,7 +436,7 @@ Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được im
 - **Decision:**
   - **Ngôn ngữ và build:** React + Vite + TypeScript. Mã nguồn ở `frontend/`; bản build là `dist/` của §3.4 và §5.5.
   - **Test:** Vitest + Testing Library (môi trường DOM do Vitest cấu hình). Không có test e2e trong trình duyệt. Test không gọi mạng thật (§0.2): mọi lời gọi API được mock bằng payload theo các ví dụ ở §3, và `fetch` chưa được mock làm test fail. Cách gắn ID và kiểm coverage: §7.9.
-  - **Đồ thị** *(v2.17, Q-14 mở lại; trước đó Sigma.js + Graphology, v2.13)*: `3d-force-graph` (Three.js, WebGL) vẽ hình cầu 3D xoay được, có chiều sâu; hover một node hiện tên người (tooltip gốc của thư viện). Dữ liệu vẽ chỉ lấy từ `SearchResponse` (`levels`, `path`); không thêm endpoint hay field để phục vụ việc vẽ. Bố cục (bán kính theo level, phân bố trên mặt cầu, path trên một đường qua tâm), màu, kiểu animation do implementation quyết định và không thuộc contract. Cần WebGL nên không chạy được trong môi trường DOM của test: test không được yêu cầu render WebGL thật (component vẽ được mock hoặc tách khỏi logic dựng dữ liệu, cùng nguyên tắc như Sigma trước đây).
+  - **Đồ thị** *(v2.17, Q-14 mở lại; trước đó Sigma.js + Graphology, v2.13; layout zích zắc + pan/reset ở v2.18)*: `3d-force-graph` (Three.js, WebGL) vẽ hình cầu 3D xoay được, có chiều sâu; hover một node hiện tên người (tooltip gốc của thư viện). Dữ liệu vẽ chỉ lấy từ `SearchResponse` (`levels`, `path`); không thêm endpoint hay field để phục vụ việc vẽ. Bố cục (mỗi node — path hay explored — có một vị trí cố định trên vỏ cầu theo level, riêng start đặt đúng tâm; path chỉ khác biệt về màu/kích thước, không phải layout), màu, kiểu animation, và cách điều hướng (xoay/zoom sẵn có của `OrbitControls`, cộng pan bằng mũi tên/WASD và nút reset ở v2.18) do implementation quyết định và không thuộc contract. Cần WebGL nên không chạy được trong môi trường DOM của test: test không được yêu cầu render WebGL thật (component vẽ được mock hoặc tách khỏi logic dựng dữ liệu, cùng nguyên tắc như Sigma trước đây).
   - **Lịch sử:** tối đa 20 entry (ADR-006).
   - **Version:** pin version của thư viện sau khi cài (lockfile được commit); hành vi phụ thuộc version phải được khóa bằng test, không dựa vào trí nhớ (cùng tinh thần §0.2).
 - **Consequences:** Cần Node để build (stage build của Dockerfile), không cần Node lúc chạy. Type API sinh bằng `openapi-typescript` từ `/openapi.json` (§3.5).
