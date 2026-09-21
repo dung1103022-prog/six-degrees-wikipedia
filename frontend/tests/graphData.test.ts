@@ -2,7 +2,7 @@
 // These tests are about the transform and the layout, which need no WebGL; Sigma is not involved.
 // (No @spec tag: SPEC §7 has no test ID for the graph, and ADR-014 keeps Sigma out of the tests.)
 import { describe, expect, it } from "vitest";
-import { buildGraph } from "../src/graph/buildGraph";
+import { buildGraph, END_COLOR, PATH_COLOR, START_COLOR } from "../src/graph/buildGraph";
 import { edgeDisplay, nodeDisplay } from "../src/graph/style";
 import { LEVELS, PATH, RESPONSE, makeResponse } from "./helpers/graph";
 
@@ -85,6 +85,57 @@ describe("buildGraph: nodes and edges", () => {
     const before = structuredClone(RESPONSE);
     buildGraph(RESPONSE);
     expect(RESPONSE).toEqual(before);
+  });
+});
+
+// Design (sixth-degree.ranisaro.com-DESIGN.md): 4 semantic roles, all derived from levels/path
+// already in SearchResponse — start = path[0], end = path[last], path = the other path nodes/edges,
+// explored = every other node `levels` lists. No BFS, no API call, node positions unchanged.
+describe("buildGraph: semantic roles (start / end / path / explored)", () => {
+  it("gives the first path name the 'start' role and its color, the last the 'end' role and its color", () => {
+    const graph = buildGraph(RESPONSE); // PATH = ["S", "P1", "P2", "T"]
+    expect(graph.getNodeAttribute("S", "role")).toBe("start");
+    expect(graph.getNodeAttribute("S", "color")).toBe(START_COLOR);
+    expect(graph.getNodeAttribute("T", "role")).toBe("end");
+    expect(graph.getNodeAttribute("T", "color")).toBe(END_COLOR);
+  });
+
+  it("gives the other path names the 'path' role and its color", () => {
+    const graph = buildGraph(RESPONSE);
+    for (const name of ["P1", "P2"]) {
+      expect(graph.getNodeAttribute(name, "role")).toBe("path");
+      expect(graph.getNodeAttribute(name, "color")).toBe(PATH_COLOR);
+    }
+  });
+
+  it("gives every non-path name the 'explored' role, coloured from EXPLORED_COLOR, faded by level", () => {
+    const graph = buildGraph(RESPONSE);
+    const explored = LEVELS.flat().filter((name) => !PATH.includes(name));
+    expect(explored.length).toBeGreaterThan(0);
+    for (const name of explored) {
+      expect(graph.getNodeAttribute(name, "role")).toBe("explored");
+      const color = graph.getNodeAttribute(name, "color");
+      expect(color).toMatch(/^rgba\(168, 85, 247, [\d.]+\)$/); // EXPLORED_COLOR (#A855F7) as rgb
+    }
+    // deeper levels fade more: a level-1 explored node is more opaque than a level-2 one
+    const alphaOf = (name: string) => Number(graph.getNodeAttribute(name, "color").match(/[\d.]+(?=\)$)/)![0]);
+    expect(alphaOf("a1")).toBeGreaterThan(alphaOf("b1"));
+  });
+
+  it("start === end (single-node path): the 'start' role wins, not 'end'", () => {
+    const graph = buildGraph(makeResponse([["A"]], ["A"]));
+    expect(graph.getNodeAttribute("A", "role")).toBe("start");
+    expect(graph.getNodeAttribute("A", "color")).toBe(START_COLOR);
+  });
+
+  it("path edges are coloured PATH_COLOR regardless of which segment (start->path, path->end included)", () => {
+    const graph = buildGraph(RESPONSE);
+    graph.forEachEdge((_edge, attrs) => expect(attrs.color).toBe(PATH_COLOR));
+  });
+
+  it("not found: no path at all, so every node is 'explored' (no start/end/path role exists)", () => {
+    const graph = buildGraph(makeResponse([["A"], ["b", "c"], ["d"]], null));
+    graph.forEachNode((_n, attrs) => expect(attrs.role).toBe("explored"));
   });
 });
 

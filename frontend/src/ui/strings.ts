@@ -19,11 +19,14 @@ export const strings = {
   historyEntry: (from: string, to: string) => `${from} → ${to}`,
   graphLabel: "Đồ thị các bước của lần tìm kiếm",
   graphUnavailable: "Không thể vẽ đồ thị (trình duyệt không hỗ trợ WebGL).",
+  graphLegendStart: "Điểm bắt đầu",
+  graphLegendEnd: "Điểm kết thúc",
   graphLegendPath: "Trên đường đi ngắn nhất",
   graphLegendOther: "Người khác được khám phá, mờ dần theo khoảng cách",
   // the /share page (SPEC §5.6)
   loading: "Đang tải…",
   invalidLink: "Link không còn hợp lệ.",
+  backToHome: "← Về trang chủ",
   newSearch: (from: string, to: string) => `Kết quả tìm kiếm mới từ "${from}" đến "${to}":`,
   pathFailed: (reason: string) => `Không thể tải đường đi: ${reason}.`,
 } as const;

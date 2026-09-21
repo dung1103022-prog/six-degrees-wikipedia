@@ -72,26 +72,40 @@ export default function SharePage() {
   }
 
   return (
-    <main className="app-main">
-      <h1>Six Degrees of Wikipedia</h1>
-      {path.status === "loading" ? <div aria-live="polite">{strings.loading}</div> : null}
-      {path.status === "error" ? <p role="alert">{strings.pathFailed(path.reason)}</p> : null}
-      {path.status === "valid" ? <PathList people={path.people} /> : null}
-      {path.status === "invalid" ? (
-        <>
-          <p role="status">{strings.invalidLink}</p>
-          <NewSearchView search={search} onChoose={choose} />
-        </>
-      ) : null}
-    </main>
+    <div className="page">
+      <header className="hero">
+        <a href="/" className="back-link">
+          {strings.backToHome}
+        </a>
+        <h1>Six Degrees of Wikipedia</h1>
+      </header>
+      <div className="layout-columns">
+        <section className="col-left">
+          <div className="card">
+            {path.status === "loading" ? <div aria-live="polite">{strings.loading}</div> : null}
+            {path.status === "error" ? <p role="alert">{strings.pathFailed(path.reason)}</p> : null}
+            {path.status === "valid" ? <PathList people={path.people} /> : null}
+            {path.status === "invalid" ? (
+              <>
+                <p role="status">{strings.invalidLink}</p>
+                <NewSearchText search={search} onChoose={choose} />
+              </>
+            ) : null}
+          </div>
+        </section>
+        <section className="col-right">
+          {path.status === "invalid" && search.status === "done" ? <GraphView response={search.response} /> : null}
+        </section>
+      </div>
+    </div>
   );
 }
 
-function NewSearchView({ search, onChoose }: { search: NewSearch; onChoose: (param: ErrorDetail["param"], candidate: PersonMeta) => void }) {
+function NewSearchText({ search, onChoose }: { search: NewSearch; onChoose: (param: ErrorDetail["param"], candidate: PersonMeta) => void }) {
   if (search.status === "none") return null;
   const { from, to } = search.query;
   return (
-    <section className="result">
+    <>
       <p>{strings.newSearch(from, to)}</p>
       {search.status === "loading" ? <div aria-live="polite">{strings.searching}</div> : null}
       {search.status === "failed" ? <SearchFailureView failure={search.failure} onChoose={onChoose} /> : null}
@@ -99,7 +113,6 @@ function NewSearchView({ search, onChoose }: { search: NewSearch; onChoose: (par
       {search.status === "done" && !search.response.found ? (
         <p role="status">{strings.noPath(search.response.from, search.response.to)}</p>
       ) : null}
-      {search.status === "done" ? <GraphView response={search.response} /> : null}
-    </section>
+    </>
   );
 }

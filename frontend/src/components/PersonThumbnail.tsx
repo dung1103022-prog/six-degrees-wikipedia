@@ -17,7 +17,7 @@ const box: CSSProperties = {
 export default function PersonThumbnail({ thumbnail }: { thumbnail: string | null }) {
   // "" is treated like null: an <img> with an empty src would re-request the page itself.
   if (thumbnail === null || thumbnail === undefined || thumbnail === "") {
-    return <span data-testid="thumb-placeholder" aria-hidden="true" style={{ ...box, background: "#d9dde3" }} />;
+    return <span data-testid="thumb-placeholder" aria-hidden="true" style={{ ...box, background: "#29292a" }} />;
   }
   // alt is empty on purpose: the name is written right next to the picture.
   return <img src={thumbnail} alt="" width={SIZE} height={SIZE} loading="lazy" style={{ ...box, objectFit: "cover" }} />;

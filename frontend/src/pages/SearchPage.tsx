@@ -68,43 +68,50 @@ export default function SearchPage() {
   const canSearch = !busy && from.trim() !== "" && to.trim() !== "";
 
   return (
-    <main className="app-main">
-      <h1>Six Degrees of Wikipedia</h1>
-      <form onSubmit={submit} className="search-form">
-        <div className="field">
-          <label htmlFor="search-from">{strings.from}</label>
-          <input id="search-from" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="search-to">{strings.to}</label>
-          <input id="search-to" value={to} onChange={(e) => setTo(e.target.value)} />
-        </div>
-        <button type="submit" disabled={!canSearch} className="btn">
-          {strings.search}
-        </button>
-      </form>
+    <div className="page">
+      <header className="hero">
+        <h1>Six Degrees of Wikipedia</h1>
+      </header>
+      <div className="layout-columns">
+        <section className="col-left">
+          <div className="card">
+            <form onSubmit={submit} className="search-form">
+              <div className="field">
+                <label htmlFor="search-from">{strings.from}</label>
+                <input id="search-from" value={from} onChange={(e) => setFrom(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="search-to">{strings.to}</label>
+                <input id="search-to" value={to} onChange={(e) => setTo(e.target.value)} />
+              </div>
+              <button type="submit" disabled={!canSearch} className="btn">
+                {strings.search}
+              </button>
+            </form>
+          </div>
 
-      <HistoryList entries={history} onPick={replay} />
-
-      <div aria-live="polite">{busy ? strings.searching : null}</div>
-      {view.status === "failed" ? <SearchFailureView failure={view.failure} onChoose={choose} /> : null}
-      {view.status === "done" ? <Result response={view.response} /> : null}
-    </main>
+          {history.length > 0 || busy || view.status === "failed" || view.status === "done" ? (
+            <div className="card">
+              <HistoryList entries={history} onPick={replay} />
+              <div aria-live="polite">{busy ? strings.searching : null}</div>
+              {view.status === "failed" ? <SearchFailureView failure={view.failure} onChoose={choose} /> : null}
+              {view.status === "done" ? <ResultText response={view.response} /> : null}
+            </div>
+          ) : null}
+        </section>
+        <section className="col-right">{view.status === "done" ? <GraphView response={view.response} /> : null}</section>
+      </div>
+    </div>
   );
 }
 
-function Result({ response }: { response: SearchResponse }) {
-  return (
-    <section className="result">
-      {response.found ? (
-        <>
-          <p>{strings.pathLength(response.length)}</p>
-          <PathList people={response.path} />
-        </>
-      ) : (
-        <p role="status">{strings.noPath(response.from, response.to)}</p>
-      )}
-      <GraphView response={response} />
-    </section>
+function ResultText({ response }: { response: SearchResponse }) {
+  return response.found ? (
+    <>
+      <p>{strings.pathLength(response.length)}</p>
+      <PathList people={response.path} />
+    </>
+  ) : (
+    <p role="status">{strings.noPath(response.from, response.to)}</p>
   );
 }

@@ -1,14 +1,32 @@
-/* Phase 5 step 1: base layout + GraphView readability. Presentation only, no behavior here.
-   Palette matches the colors already used in the graph (buildGraph.ts) and PersonThumbnail. */
+/* Phase 5 steps 1-2 (UI redesign): palette, typography, layout and card/graph treatment matched
+   to sixth-degree.ranisaro.com-DESIGN.md. Presentation only, no behavior here. The four semantic
+   graph colors (start/end/path/explored) live in buildGraph.ts and are applied via inline style,
+   since Sigma reads them from the graph's own node/edge attributes, not from CSS. */
 :root {
-  --color-bg: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-border: #d9dde3;
-  --color-text: #1f2933;
-  --color-muted: #5b6673;
-  --color-node: #8da0b5;
-  --color-path: #e4572e;
-  --color-path-contrast: #ffffff;
+  /* theme (design doc: themes.dark) */
+  --color-bg: #0e0e10;
+  --color-surface: #1c1c1e;
+  --color-surface-raised: #29292a;
+  --color-heading: #9ca3af; /* colors.ink: headings, labels */
+  --color-body: #d1d5db; /* colors.body: body copy */
+  --color-muted: #f3f4f6; /* colors.muted: captions, hints */
+  --color-hairline: #1f2937; /* colors.hairline: all borders */
+  --color-primary: #374151; /* colors.primary: button fill */
+  --color-on-primary: #ffffff;
+  --color-focus-ring: #586882; /* themes.dark.focusRing */
+
+  /* rounded (design doc: rounded.none / rounded.xs) */
+  --radius-none: 0px;
+  --radius-button: 8px;
+
+  /* spacing (design doc: spacing.*) */
+  --space-xxs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
   --graph-height: 480px;
 }
 
@@ -19,26 +37,108 @@
 body {
   margin: 0;
   background: var(--color-bg);
-  color: var(--color-text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--color-body);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
 }
 
-.app-main {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 24px 20px 48px;
+a {
+  color: inherit;
+}
+
+.page {
+  min-height: 100vh;
+}
+
+/* ------------------------------------------------------------------------- hero (header region only) */
+
+.hero {
+  background: linear-gradient(to right bottom, rgb(17, 24, 39), rgb(0, 0, 0), rgb(31, 41, 55));
+  padding: var(--space-lg) var(--space-md);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: var(--space-sm);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.43;
+  color: var(--color-body);
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--color-muted);
+  text-decoration: underline;
+}
+
+.back-link:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 h1 {
-  font-size: 1.5rem;
-  margin: 0 0 20px;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.11;
+  letter-spacing: 0;
+  color: var(--color-heading);
+  margin: 0;
 }
 
 h2 {
-  font-size: 1rem;
-  margin: 0 0 8px;
-  color: var(--color-muted);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--color-heading);
+  margin: 0 0 var(--space-xs);
+}
+
+/* ------------------------------------------------------------------------- two-column layout (never collapses) */
+
+.layout-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-md);
+  padding: var(--space-md);
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .layout-columns {
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+  }
+}
+
+@media (min-width: 1280px) {
+  .layout-columns {
+    gap: var(--space-xl);
+  }
+}
+
+.col-left,
+.col-right {
+  min-width: 0; /* grid items default to min-width:auto, which is what forces horizontal scroll */
+  overflow-wrap: break-word;
+}
+
+/* ------------------------------------------------------------------------- cards (Pathfinding Search, Search Log) */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-none);
+  padding: var(--space-md);
+  box-shadow:
+    rgba(0, 0, 0, 0.1) 0px 20px 25px -5px,
+    rgba(0, 0, 0, 0.1) 0px 8px 10px -6px;
+  margin-bottom: var(--space-lg);
+}
+
+.card:last-child {
+  margin-bottom: 0;
 }
 
 /* ------------------------------------------------------------------------- search form */
@@ -47,119 +147,159 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
 }
 
 .search-form .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1 1 200px;
+  gap: var(--space-xxs);
+  flex: 1 1 160px;
+  min-width: 0;
 }
 
 .search-form label {
-  font-size: 0.85rem;
-  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.43;
+  color: var(--color-body);
 }
 
 .search-form input {
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 1rem;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-none);
+  background: var(--color-surface-raised);
+  color: var(--color-heading);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  min-width: 0;
+  width: 100%;
+}
+
+.search-form input::placeholder {
+  color: var(--color-muted);
 }
 
 .search-form input:focus-visible {
-  outline: 2px solid var(--color-path);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
 }
 
 .btn {
-  padding: 9px 18px;
+  height: 48px;
+  padding: var(--space-sm) var(--space-md);
   border: none;
-  border-radius: 6px;
-  background: var(--color-path);
-  color: var(--color-path-contrast);
-  font-size: 1rem;
+  border-radius: var(--radius-button);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
   cursor: pointer;
+  box-shadow: none;
 }
 
 .btn:disabled {
-  background: var(--color-border);
+  background: var(--color-surface-raised);
   color: var(--color-muted);
   cursor: not-allowed;
 }
 
 .btn:not(:disabled):hover {
-  filter: brightness(0.92);
+  filter: brightness(1.15);
 }
 
-/* ------------------------------------------------------------------------- chip lists (history, candidates) */
+.btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------------------- chip lists (history, candidates) — sharp, no pill */
 
 .chip-list {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 20px;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-lg);
   padding: 0;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-none);
   background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.9rem;
+  color: var(--color-body);
+  font-size: 14px;
+  line-height: 1.43;
   cursor: pointer;
   text-align: left;
 }
 
 .chip:hover {
-  border-color: var(--color-path);
+  border-color: var(--color-focus-ring);
 }
 
-/* ------------------------------------------------------------------------- path (the found path itself) */
+.chip:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------------------- path (the found path itself) — sharp, no pill */
 
 .path-list {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  margin: 0 0 16px;
+  gap: var(--space-xxs);
+  margin: 0 0 var(--space-md);
   padding: 0;
 }
 
 .path-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px 4px 4px;
-  border-radius: 999px;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-sm) var(--space-xxs) var(--space-xxs);
+  border-radius: var(--radius-none);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-hairline);
+  color: var(--color-body);
+  font-size: 14px;
+  line-height: 1.43;
 }
 
 .path-item:not(:last-child)::after {
   content: "→";
-  margin-left: 8px;
+  margin-left: var(--space-xs);
   color: var(--color-muted);
+}
+
+/* ------------------------------------------------------------------------- result text (paragraphs, status/error lines) */
+
+.col-left p {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.43;
+  color: var(--color-body);
 }
 
 /* ------------------------------------------------------------------------- GraphView */
 
 .graph-wrap {
-  margin: 16px 0;
+  margin: 0;
 }
 
 .graph-canvas {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-hairline);
   border-radius: 8px;
   background: var(--color-surface);
   overflow: hidden;
@@ -168,9 +308,11 @@ h2 {
 .graph-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
-  margin: 8px 0 0;
-  font-size: 0.85rem;
+  gap: 6px var(--space-md);
+  margin: var(--space-xs) 0 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.33;
   color: var(--color-muted);
 }
 
@@ -188,22 +330,9 @@ h2 {
   flex-shrink: 0;
 }
 
-/* ------------------------------------------------------------------------- narrow / mobile */
+/* ------------------------------------------------------------------------- narrow viewports: graph stays legible, layout stays 2-column */
 
 @media (max-width: 640px) {
-  .app-main {
-    padding: 16px 14px 32px;
-  }
-
-  .search-form {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .btn {
-    width: 100%;
-  }
-
   :root {
     --graph-height: 320px;
   }

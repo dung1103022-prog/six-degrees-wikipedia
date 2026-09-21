@@ -96,15 +96,19 @@ describe("GraphView", () => {
     expect(hiddenEdges(sigma)).toEqual([]); // the whole path is there
   });
 
-  it("draws the found path highlighted, and only that", () => {
+  it("draws the found path highlighted, with 4 distinct semantic colors (start/end/path/explored)", () => {
     render(<GraphView response={RESPONSE} />);
     const sigma = h.instances[0]!;
     advance(LEVEL_MS * 5);
     const reducer = sigma.settings.nodeReducer as (n: string, a: never) => { color: string; size: number };
     const shown = (n: string) => reducer(n, sigma.graph.getNodeAttributes(n));
+    // PATH = ["S", "P1", "P2", "T"]: S is start, T is end, P1/P2 are the intermediate path nodes.
     for (const name of PATH) expect(shown(name).size).toBeGreaterThan(shown("a1").size);
-    expect(new Set(PATH.map((n) => shown(n).color)).size).toBe(1);
-    expect(shown("P1").color).not.toBe(shown("a1").color);
+    expect(shown("S").color).not.toBe(shown("T").color); // start vs end
+    expect(shown("P1").color).not.toBe(shown("S").color); // path vs start
+    expect(shown("P1").color).not.toBe(shown("T").color); // path vs end
+    expect(shown("P1").color).toBe(shown("P2").color); // the intermediate path nodes share one color
+    expect(shown("P1").color).not.toBe(shown("a1").color); // path vs explored
   });
 
   it("draws a search that found nothing: the explored levels, no path", () => {

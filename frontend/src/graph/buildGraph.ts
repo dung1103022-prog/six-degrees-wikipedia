@@ -10,6 +10,14 @@
 import Graph from "graphology";
 import type { SearchResponse } from "../api/types";
 
+// Four semantic roles (design: sixth-degree.ranisaro.com-DESIGN.md, "Legend / Status Indicators"),
+// all derived from data already in SearchResponse — nothing here runs a BFS or calls the API:
+//   start    = path[0]
+//   end      = path[last] (path[0] again when the path is a single node: start wins, see nodeAttributes)
+//   path     = the other nodes/edges of the found path
+//   explored = every other node that `levels` lists
+export type NodeRole = "start" | "end" | "path" | "explored";
+
 export interface NodeAttributes {
   x: number;
   y: number;
@@ -18,6 +26,7 @@ export interface NodeAttributes {
   zIndex: number;
   level: number;
   onPath: boolean;
+  role: NodeRole;
   label?: string;
   forceLabel?: boolean;
 }
@@ -35,22 +44,32 @@ export interface EdgeAttributes {
 export const RING_SPACING = 130;
 const NODE_SIZE = 2;
 const PATH_NODE_SIZE = 8;
-export const NODE_COLOR = "#8da0b5"; // exported so the legend swatch matches the drawing exactly
-export const PATH_COLOR = "#e4572e";
+// exported so the legend swatches match the drawing exactly (design: Start/End/Path/Explored)
+export const START_COLOR = "#10B981";
+export const END_COLOR = "#EF4444";
+export const PATH_COLOR = "#6366F1";
+export const EXPLORED_COLOR = "#A855F7";
 const PATH_EDGE_SIZE = 3;
-// r,g,b of NODE_COLOR: nodes further from the start fade out, so a ring's depth (level) is visible
+// r,g,b of EXPLORED_COLOR: nodes further from the start fade out, so a ring's depth (level) is visible
 // at a glance, not just its radius. Purely presentational, like the rest of this layout (see above).
-const NODE_RGB = "141, 160, 181";
+const EXPLORED_RGB = "168, 85, 247";
 
 function levelFade(level: number): string {
   const alpha = Math.max(0.35, 1 - level * 0.12);
-  return `rgba(${NODE_RGB}, ${alpha})`;
+  return `rgba(${EXPLORED_RGB}, ${alpha})`;
 }
 
 export function buildGraph(response: SearchResponse): Graph<NodeAttributes, EdgeAttributes> {
   const graph = new Graph<NodeAttributes, EdgeAttributes>({ type: "directed", multi: false, allowSelfLoops: false });
   const pathNames = response.path.map((person) => person.name);
   const onPath = new Set(pathNames);
+  const startName = pathNames[0];
+  const endName = pathNames[pathNames.length - 1];
+  const role = (name: string): NodeRole => {
+    if (name === startName) return "start"; // wins over "end" when the path is a single node
+    if (name === endName) return "end";
+    return onPath.has(name) ? "path" : "explored";
+  };
 
   response.levels.forEach((level, k) => {
     // A name is drawn once (SPEC I-2): the first level that lists it wins.
@@ -59,7 +78,7 @@ export function buildGraph(response: SearchResponse): Graph<NodeAttributes, Edge
     const ordered = [...members.filter((n) => onPath.has(n)), ...members.filter((n) => !onPath.has(n))];
     ordered.forEach((name, i) => {
       const angle = (2 * Math.PI * i) / ordered.length;
-      graph.addNode(name, nodeAttributes(name, onPath.has(name), k, k * RING_SPACING * Math.cos(angle), k * RING_SPACING * Math.sin(angle)));
+      graph.addNode(name, nodeAttributes(name, onPath.has(name), role(name), k, k * RING_SPACING * Math.cos(angle), k * RING_SPACING * Math.sin(angle)));
     });
   });
 
@@ -67,7 +86,7 @@ export function buildGraph(response: SearchResponse): Graph<NodeAttributes, Edge
   pathNames.forEach((name, i) => {
     if (graph.hasNode(name)) return;
     const angle = -0.05;
-    graph.addNode(name, nodeAttributes(name, true, i, i * RING_SPACING * Math.cos(angle), i * RING_SPACING * Math.sin(angle)));
+    graph.addNode(name, nodeAttributes(name, true, role(name), i, i * RING_SPACING * Math.cos(angle), i * RING_SPACING * Math.sin(angle)));
   });
 
   for (let i = 0; i + 1 < pathNames.length; i++) {
@@ -86,8 +105,14 @@ export function buildGraph(response: SearchResponse): Graph<NodeAttributes, Edge
   return graph;
 }
 
-function nodeAttributes(name: string, onPath: boolean, level: number, x: number, y: number): NodeAttributes {
+const ROLE_COLOR: Record<Exclude<NodeRole, "explored">, string> = {
+  start: START_COLOR,
+  end: END_COLOR,
+  path: PATH_COLOR,
+};
+
+function nodeAttributes(name: string, onPath: boolean, role: NodeRole, level: number, x: number, y: number): NodeAttributes {
   return onPath
-    ? { x, y, size: PATH_NODE_SIZE, color: PATH_COLOR, zIndex: 1, level, onPath, label: name, forceLabel: true }
-    : { x, y, size: NODE_SIZE, color: levelFade(level), zIndex: 0, level, onPath };
+    ? { x, y, size: PATH_NODE_SIZE, color: ROLE_COLOR[role as Exclude<NodeRole, "explored">], zIndex: 1, level, onPath, role, label: name, forceLabel: true }
+    : { x, y, size: NODE_SIZE, color: levelFade(level), zIndex: 0, level, onPath, role };
 }

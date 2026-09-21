@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 import { EdgeArrowProgram, type EdgeProgramType } from "sigma/rendering";
 import type { SearchResponse } from "../api/types";
-import { buildGraph, NODE_COLOR, PATH_COLOR, type EdgeAttributes, type NodeAttributes } from "../graph/buildGraph";
+import { buildGraph, END_COLOR, EXPLORED_COLOR, PATH_COLOR, START_COLOR, type EdgeAttributes, type NodeAttributes } from "../graph/buildGraph";
 import { drawPathLabel } from "../graph/label";
 import { edgeDisplay, nodeDisplay } from "../graph/style";
 import { useLevelAnimation } from "../graph/useLevelAnimation";
@@ -76,11 +76,19 @@ export default function GraphView({ response }: { response: SearchResponse }) {
       <div ref={container} role="img" aria-label={strings.graphLabel} className="graph-canvas" style={CONTAINER_STYLE} />
       <p className="graph-legend">
         <span className="graph-legend-item">
+          <span className="graph-legend-dot" style={{ background: START_COLOR }} aria-hidden="true" />
+          {strings.graphLegendStart}
+        </span>
+        <span className="graph-legend-item">
+          <span className="graph-legend-dot" style={{ background: END_COLOR }} aria-hidden="true" />
+          {strings.graphLegendEnd}
+        </span>
+        <span className="graph-legend-item">
           <span className="graph-legend-dot" style={{ background: PATH_COLOR }} aria-hidden="true" />
           {strings.graphLegendPath}
         </span>
         <span className="graph-legend-item">
-          <span className="graph-legend-dot" style={{ background: NODE_COLOR }} aria-hidden="true" />
+          <span className="graph-legend-dot" style={{ background: EXPLORED_COLOR }} aria-hidden="true" />
           {strings.graphLegendOther}
         </span>
       </p>
