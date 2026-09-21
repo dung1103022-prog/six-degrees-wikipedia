@@ -29,4 +29,20 @@ export const strings = {
   backToHome: "← Về trang chủ",
   newSearch: (from: string, to: string) => `Kết quả tìm kiếm mới từ "${from}" đến "${to}":`,
   pathFailed: (reason: string) => `Không thể tải đường đi: ${reason}.`,
+  // Panel titles (design: sixth-degree.ranisaro.com-DESIGN.md — "Pathfinding Search" / "Search Log" /
+  // "Network Visualization"). The Search Log card is a client-only replay of the SearchResponse
+  // already fetched (see SearchLog.tsx): there is no live socket to a server, so "connected" here
+  // means "a search is in flight or done", not an actual connection.
+  pathfindingSearchTitle: "Tìm đường đi",
+  networkVisualizationTitle: "Trực quan hóa mạng lưới",
+  nodesExplored: (n: number) => `Đã khám phá: ${n} node`,
+  searchLogTitle: "Nhật ký tìm kiếm",
+  searchLogStatusOn: "Đã kết nối",
+  searchLogStatusOff: "Ngắt kết nối",
+  searchLogEmpty: "Chưa có hoạt động tìm kiếm nào. Chọn điểm bắt đầu và kết thúc để bắt đầu.",
+  searchLogConnected: "Đã kết nối tới máy chủ tìm đường.",
+  searchLogSearching: (from: string, to: string) => `Đang tìm đường từ "${from}" đến "${to}"…`,
+  searchLogLevel: (level: number, explored: number) => `Cấp ${level}: đã khám phá ${explored} node.`,
+  searchLogPathNode: (name: string, level: number) => `Cấp ${level}: node trên đường đi — ${name}.`,
+  searchLogFailed: "Tìm kiếm không thành công.",
 } as const;

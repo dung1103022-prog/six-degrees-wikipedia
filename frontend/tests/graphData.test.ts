@@ -139,25 +139,35 @@ describe("buildGraph: semantic roles (start / end / path / explored)", () => {
   });
 });
 
-describe("buildGraph: layout (concentric rings, one per level)", () => {
-  it("puts the start in the centre and every level on its own ring, growing outwards", () => {
+// Design (sixth-degree.ranisaro.com-DESIGN.md, "Network Visualization"): an organic scatter, not a
+// target's rings — but depth from the start must still read at a glance, so a level's explored nodes
+// live in their own radius band, and no two levels' bands ever overlap.
+describe("buildGraph: layout (path on a line, explored nodes banded and scattered)", () => {
+  it("puts the start in the centre", () => {
     const graph = buildGraph(RESPONSE);
     expect(graph.getNodeAttribute("S", "x")).toBeCloseTo(0);
     expect(graph.getNodeAttribute("S", "y")).toBeCloseTo(0);
-    const radii = LEVELS.map((level) => {
-      const rs = level.map((n) => dist(graph, n));
-      rs.forEach((r) => expect(r).toBeCloseTo(rs[0]!)); // one ring
-      return rs[0]!;
-    });
-    for (let k = 1; k < radii.length; k++) expect(radii[k]!).toBeGreaterThan(radii[k - 1]!);
   });
 
-  it("puts the whole path on one ray from the centre: a straight highlighted line", () => {
+  it("puts the whole path on one straight line through the centre, each step further out", () => {
     const graph = buildGraph(RESPONSE);
     const radii = PATH.map((n) => dist(graph, n));
     PATH.forEach((n) => expect(graph.getNodeAttribute(n, "y")).toBeCloseTo(0));
     PATH.slice(1).forEach((n) => expect(graph.getNodeAttribute(n, "x")).toBeGreaterThan(0));
     for (let i = 1; i < radii.length; i++) expect(radii[i]!).toBeGreaterThan(radii[i - 1]!);
+  });
+
+  it("keeps a level's explored nodes closer to the centre than the next level's, even with the scatter", () => {
+    const graph = buildGraph(RESPONSE);
+    const exploredByLevel = LEVELS.map((level) => level.filter((n) => !PATH.includes(n)));
+    const maxRadius = (list: string[]) => Math.max(...list.map((n) => dist(graph, n)));
+    const minRadius = (list: string[]) => Math.min(...list.map((n) => dist(graph, n)));
+    for (let k = 1; k < exploredByLevel.length; k++) {
+      const prev = exploredByLevel[k - 1]!;
+      const cur = exploredByLevel[k]!;
+      if (prev.length === 0 || cur.length === 0) continue;
+      expect(minRadius(cur)).toBeGreaterThan(maxRadius(prev));
+    }
   });
 
   it("never puts two nodes on the same spot", () => {

@@ -4,9 +4,13 @@
 //  * a node per name of `levels`; `level` is its BFS depth (levels[k] = discovered at depth k);
 //  * the only edges are those of the found path, directed and in path order: the response does not say
 //    which node discovered which, so nothing else is drawn as an edge;
-//  * layout: concentric rings, one per level, the start in the centre; the whole path lies on one ray
-//    (a straight highlighted line), the other nodes of a ring are spread evenly around it.
-//    Layout, colours and sizes are the implementation's choice and not part of any contract.
+//  * layout (design: sixth-degree.ranisaro.com-DESIGN.md, "Network Visualization"): the whole path
+//    lies on one straight line through the centre, in path order. Every other node is scattered
+//    inside a radius *band* that belongs to its own level — band k never overlaps band k+1, so depth
+//    still reads at a glance — but where inside that band, and at what angle, comes from a
+//    deterministic hash of the node's own name rather than an even split, so the result looks like an
+//    organic field of points instead of a target's rings. Layout, colours and sizes are the
+//    implementation's choice and not part of any contract.
 import Graph from "graphology";
 import type { SearchResponse } from "../api/types";
 
@@ -41,7 +45,12 @@ export interface EdgeAttributes {
   onPath: true;
 }
 
-export const RING_SPACING = 130;
+// One level's explored nodes are scattered inside [k * BAND_WIDTH, k * BAND_WIDTH + BAND_WIDTH * BAND_FILL);
+// BAND_FILL < 1 leaves a gap so no two consecutive bands can ever overlap, whatever the hash gives.
+export const BAND_WIDTH = 90;
+const BAND_FILL = 0.88;
+// Spacing between consecutive nodes of the path along its centre line.
+export const PATH_SPACING = 140;
 const NODE_SIZE = 2;
 const PATH_NODE_SIZE = 8;
 // exported so the legend swatches match the drawing exactly (design: Start/End/Path/Explored)
@@ -50,13 +59,24 @@ export const END_COLOR = "#EF4444";
 export const PATH_COLOR = "#6366F1";
 export const EXPLORED_COLOR = "#A855F7";
 const PATH_EDGE_SIZE = 3;
-// r,g,b of EXPLORED_COLOR: nodes further from the start fade out, so a ring's depth (level) is visible
+// r,g,b of EXPLORED_COLOR: nodes further from the start fade out, so a level's depth is visible
 // at a glance, not just its radius. Purely presentational, like the rest of this layout (see above).
 const EXPLORED_RGB = "168, 85, 247";
 
 function levelFade(level: number): string {
   const alpha = Math.max(0.35, 1 - level * 0.12);
   return `rgba(${EXPLORED_RGB}, ${alpha})`;
+}
+
+// A small deterministic hash of a string into [0, 1) (FNV-1a, then normalised). Not cryptographic —
+// only used to place a node inside its band/angle so the same response always draws the same way.
+function hashUnit(seed: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) / 0xffffffff;
 }
 
 export function buildGraph(response: SearchResponse): Graph<NodeAttributes, EdgeAttributes> {
@@ -70,23 +90,39 @@ export function buildGraph(response: SearchResponse): Graph<NodeAttributes, Edge
     if (name === endName) return "end";
     return onPath.has(name) ? "path" : "explored";
   };
+  const pathIndex = new Map(pathNames.map((name, i) => [name, i]));
 
   response.levels.forEach((level, k) => {
     // A name is drawn once (SPEC I-2): the first level that lists it wins.
     const members = level.nodes.filter((name, i) => !graph.hasNode(name) && level.nodes.indexOf(name) === i);
-    // The path node(s) of this ring come first, so that they sit at angle 0.
-    const ordered = [...members.filter((n) => onPath.has(n)), ...members.filter((n) => !onPath.has(n))];
-    ordered.forEach((name, i) => {
-      const angle = (2 * Math.PI * i) / ordered.length;
-      graph.addNode(name, nodeAttributes(name, onPath.has(name), role(name), k, k * RING_SPACING * Math.cos(angle), k * RING_SPACING * Math.sin(angle)));
+    const onLevelPath = members.filter((name) => onPath.has(name));
+    const explored = members.filter((name) => !onPath.has(name));
+
+    // Path members sit on the centre line at their own position IN THE PATH (never at `k`), so the
+    // whole path draws as one straight, strictly outward line even if a level lists more than one of
+    // its nodes.
+    onLevelPath.forEach((name) => {
+      const i = pathIndex.get(name)!;
+      graph.addNode(name, nodeAttributes(name, true, role(name), k, i * PATH_SPACING, 0));
+    });
+
+    // Explored members: scattered inside this level's own band. `i / explored.length` still spreads
+    // them out (so two names that hash close together do not land on top of each other), and the
+    // per-name hash offsets both the angle and how deep into the band the radius sits.
+    const bandMin = k * BAND_WIDTH;
+    const bandSpan = BAND_WIDTH * BAND_FILL;
+    explored.forEach((name, i) => {
+      const radius = bandMin + hashUnit(`r:${name}`) * bandSpan;
+      const angle = 2 * Math.PI * ((i + hashUnit(`a:${name}`)) / explored.length);
+      graph.addNode(name, nodeAttributes(name, false, "explored", k, radius * Math.cos(angle), radius * Math.sin(angle)));
     });
   });
 
-  // `levels` always lists the path (SPEC §4.3-4.4); if it did not, the node is still drawn, on the path's ray.
+  // `levels` always lists the path (SPEC §4.3-4.4); if it did not, the node is still drawn, on the
+  // centre line at its own position in the path.
   pathNames.forEach((name, i) => {
     if (graph.hasNode(name)) return;
-    const angle = -0.05;
-    graph.addNode(name, nodeAttributes(name, true, role(name), i, i * RING_SPACING * Math.cos(angle), i * RING_SPACING * Math.sin(angle)));
+    graph.addNode(name, nodeAttributes(name, true, role(name), i, i * PATH_SPACING, 0));
   });
 
   for (let i = 0; i + 1 < pathNames.length; i++) {

@@ -8,15 +8,16 @@ import GraphView from "../components/GraphView";
 import HistoryList from "../components/HistoryList";
 import PathList from "../components/PathList";
 import SearchFailureView from "../components/SearchFailureView";
+import SearchLog from "../components/SearchLog";
 import { useHistory, type HistoryEntry } from "../lib/history";
 import { strings } from "../ui/strings";
 
-interface Query {
+export interface Query {
   from: string;
   to: string;
 }
 
-type View =
+export type View =
   | { status: "idle" }
   | { status: "loading"; query: Query }
   | { status: "done"; query: Query; response: SearchResponse }
@@ -75,6 +76,7 @@ export default function SearchPage() {
       <div className="layout-columns">
         <section className="col-left">
           <div className="card">
+            <h2 className="card-title">{strings.pathfindingSearchTitle}</h2>
             <form onSubmit={submit} className="search-form">
               <div className="field">
                 <label htmlFor="search-from">{strings.from}</label>
@@ -98,6 +100,8 @@ export default function SearchPage() {
               {view.status === "done" ? <ResultText response={view.response} /> : null}
             </div>
           ) : null}
+
+          <SearchLog view={view} />
         </section>
         <section className="col-right">{view.status === "done" ? <GraphView response={view.response} /> : null}</section>
       </div>

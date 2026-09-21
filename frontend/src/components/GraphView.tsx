@@ -33,6 +33,9 @@ export default function GraphView({ response }: { response: SearchResponse }) {
   const graph = useMemo(() => buildGraph(response), [response]);
   const visible = useLevelAnimation(response.levels.length, response);
   const [unavailable, setUnavailable] = useState(false);
+  // How many nodes the levels revealed so far actually list (design: "Nodes explored" counter) — a
+  // straight sum over data already in the response, not a count read back from Sigma/Graphology.
+  const explored = useMemo(() => response.levels.slice(0, visible).reduce((n, level) => n + level.nodes.length, 0), [response, visible]);
 
   // One Sigma per graph.
   useEffect(() => {
@@ -72,8 +75,15 @@ export default function GraphView({ response }: { response: SearchResponse }) {
 
   if (unavailable) return <p role="note">{strings.graphUnavailable}</p>;
   return (
-    <div className="graph-wrap">
-      <div ref={container} role="img" aria-label={strings.graphLabel} className="graph-canvas" style={CONTAINER_STYLE} />
+    <div className="card graph-panel">
+      <h2 className="card-title">
+        <span className="status-dot status-dot--on" aria-hidden="true" />
+        {strings.networkVisualizationTitle}
+      </h2>
+      <div className="graph-canvas-wrap">
+        <div ref={container} role="img" aria-label={strings.graphLabel} className="graph-canvas" style={CONTAINER_STYLE} />
+        <span className="graph-panel-badge">{strings.nodesExplored(explored)}</span>
+      </div>
       <p className="graph-legend">
         <span className="graph-legend-item">
           <span className="graph-legend-dot" style={{ background: START_COLOR }} aria-hidden="true" />
