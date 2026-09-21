@@ -36,6 +36,7 @@ interface FakeCamera {
 
 interface FakeFG {
   element: HTMLElement;
+  config: unknown;
   data: GraphSnapshot;
   calls: Record<string, unknown[][]>;
   cam: FakeCamera;
@@ -47,6 +48,7 @@ interface FakeFG {
 vi.mock("3d-force-graph", () => {
   class FakeForceGraph3D {
     element: HTMLElement;
+    config: unknown;
     data: GraphSnapshot = { nodes: [], links: [] };
     calls: Record<string, unknown[][]> = {};
     // A fixed, identity-oriented starting camera (matrixWorld left as the identity matrix), so a
@@ -56,14 +58,23 @@ vi.mock("3d-force-graph", () => {
     homePosition = { x: 0, y: 0, z: 300 };
     _destructor = vi.fn();
 
-    constructor(element: HTMLElement) {
+    constructor(element: HTMLElement, config?: unknown) {
       if (h.failToStart) throw new Error("3d-force-graph: could not create a WebGL context");
       this.element = element;
+      this.config = config;
       h.instances.push(this as unknown as FakeFG);
     }
 
     camera(): FakeCamera { return this.cam; }
-    controls(): FakeControls { return this.ctrl; }
+
+    // Realistic on purpose (not just always-OrbitControls-shaped): 3d-force-graph's own default
+    // controlType is "trackball", whose controls object has no `listenToKeyEvents` — that is exactly
+    // the mismatch that crashed the real page (see the regression test below). Only `controlType:
+    // "orbit"` gets the fuller, OrbitControls-shaped fake.
+    controls(): FakeControls | Omit<FakeControls, "listenToKeyEvents"> {
+      const isOrbit = (this.config as { controlType?: string } | undefined)?.controlType === "orbit";
+      return isOrbit ? this.ctrl : { target: this.ctrl.target, update: this.ctrl.update };
+    }
 
     cameraPosition(position?: { x: number; y: number; z: number }, lookAt?: unknown, ms?: unknown): this | { x: number; y: number; z: number } {
       if (position === undefined) return this.homePosition;
@@ -210,6 +221,12 @@ describe("GraphView", () => {
     render(<GraphView response={RESPONSE} />);
     advance(LEVEL_MS * 5);
     expect(h.instances[0]!.data.nodes).toHaveLength(buildGraph(RESPONSE).nodes.length);
+  });
+
+  it("constructs with controlType: \"orbit\" (3d-force-graph's own default is \"trackball\", which has no listenToKeyEvents — regression test for the black-screen crash found 2026-09-21)", () => {
+    render(<GraphView response={null} />);
+    const fg = h.instances[0]!;
+    expect(fg.config).toMatchObject({ controlType: "orbit" });
   });
 
   it("enables the arrow keys' own panning on the canvas element itself, not the whole window (design: 2026-09-21 follow-up)", () => {

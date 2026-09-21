@@ -77,7 +77,14 @@ export default function GraphView({ response }: { response: SearchResponse | nul
       // itself a generic class at the type level, only the instance interface is): cast once, right
       // after construction, to the response's own node/link shape; every chained call below is then
       // checked against Node3D/Link3D.
-      fg = new ForceGraph3D(element) as unknown as ForceGraph3DInstance<Node3D, Link3D>;
+      //
+      // `controlType: "orbit"` MUST be passed here — 3d-force-graph's own default is "trackball", a
+      // different Three.js controls class that has no `.listenToKeyEvents` (that method is
+      // OrbitControls-only). Without this, `.listenToKeyEvents` below throws a real TypeError the
+      // first time this effect runs — outside the try/catch, so React has no error boundary here and
+      // the whole page goes blank (a black screen that "flashes" the moment before the effect fires,
+      // then never recovers) — bug found in the browser 2026-09-21, fixed here.
+      fg = new ForceGraph3D(element, { controlType: "orbit" }) as unknown as ForceGraph3DInstance<Node3D, Link3D>;
       fg
         .graphData(EMPTY_GRAPH)
         .backgroundColor("rgba(0,0,0,0)")
