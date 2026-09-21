@@ -1,3 +1,6 @@
+Live Demo
+https://six-degrees-wikipedia-psi.vercel.app/
+
 # Six Degrees of Wikipedia (Python)
 
 Find the shortest chain of Wikipedia links between two people — in English or Japanese — with an
