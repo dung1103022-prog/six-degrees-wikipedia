@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Six Degrees of Wikipedia — 個人開発 面接用プロフィール</title>
+<meta name="description" content="Six Degrees of Wikipedia (Python) の個人開発プロフィール。設計判断、AI支援開発の実際、検証プロセスをまとめた面接用資料。" />
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-alt: #f1f3f6;
+    --border: #e2e5ea;
+    --text: #1a2233;
+    --text-muted: #5b6474;
+    --text-faint: #8891a0;
+    --accent: #2f5fd6;
+    --accent-soft: #eaf0ff;
+    --accent-2: #0f9d6b;
+    --accent-2-soft: #e7f8f1;
+    --warn: #b5580a;
+    --warn-soft: #fdf1e4;
+    --code-bg: #10131c;
+    --code-text: #d7dce6;
+    --radius: 10px;
+    --maxw: 880px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10131a;
+      --surface: #171b26;
+      --surface-alt: #1d2230;
+      --border: #2a3040;
+      --text: #e7eaf1;
+      --text-muted: #a8b0c0;
+      --text-faint: #7e8798;
+      --accent: #7fa1ff;
+      --accent-soft: #1c2a4c;
+      --accent-2: #4fd6a6;
+      --accent-2-soft: #163229;
+      --warn: #e5a45c;
+      --warn-soft: #3a2a14;
+      --code-bg: #0a0c12;
+      --code-text: #cfd6e4;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px 80px; }
+
+  /* ---------------------------------------------------------------- header */
+  header.hero {
+    background: linear-gradient(155deg, var(--surface) 0%, var(--surface-alt) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 20px 36px;
+  }
+  header.hero .wrap { padding-bottom: 0; }
+  .eyebrow {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  h1.title {
+    font-size: 30px;
+    font-weight: 800;
+    margin: 10px 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .tagline {
+    font-size: 16px;
+    color: var(--text-muted);
+    margin: 0 0 22px;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .meta-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .meta-item .k {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .meta-item .v { font-size: 14px; word-break: break-all; }
+  .meta-item .v a { font-weight: 600; }
+
+  /* ---------------------------------------------------------------- nav */
+  nav.toc {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 10px 20px;
+  }
+  nav.toc .inner { max-width: var(--maxw); margin: 0 auto; }
+  nav.toc a {
+    display: inline-block;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    padding: 5px 10px;
+    border-radius: 999px;
+    margin-right: 4px;
+  }
+  nav.toc a:hover { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
+
+  /* ---------------------------------------------------------------- sections */
+  section { padding-top: 46px; scroll-margin-top: 54px; }
+  section:first-of-type { padding-top: 40px; }
+  h2.sec-title {
+    font-size: 21px;
+    font-weight: 800;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  h2.sec-title .letter {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 6px;
+    padding: 2px 7px;
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+  p { margin: 0 0 14px; color: var(--text); }
+  p.lead { font-size: 15.5px; color: var(--text-muted); margin-bottom: 22px; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin-bottom: 7px; }
+  strong { font-weight: 700; }
+  .note {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    background: var(--surface-alt);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 16px 0;
+  }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  code, .mono {
+    font-family: "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 0.92em;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  /* ---------------------------------------------------------------- flow diagrams */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin: 18px 0 22px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 4px;
+  }
+  .flow-box {
+    flex: 1;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: center;
+  }
+  .flow-box.alt { background: var(--accent-2-soft); color: var(--accent-2); }
+  .flow-arrow {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+    padding: 2px 0;
+    margin-left: 0;
+  }
+  .flow-desc { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; text-align: center; }
+
+  .timeline {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin: 18px 0 22px;
+  }
+  .timeline-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border);
+    align-items: start;
+  }
+  .timeline-row:last-child { border-bottom: none; }
+  .timeline-actor {
+    font-weight: 800;
+    font-size: 13.5px;
+    color: var(--accent);
+  }
+  .timeline-actor.human { color: var(--accent-2); }
+  .timeline-body { font-size: 14px; color: var(--text-muted); }
+  .timeline-body .h { color: var(--text); font-weight: 600; margin-bottom: 2px; }
+
+  /* ---------------------------------------------------------------- architecture */
+  .arch-embed {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+    margin: 16px 0;
+  }
+  .arch-embed iframe { width: 100%; height: 560px; border: 0; display: block; background: #fff; }
+  .arch-embed .cap {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: var(--text-faint);
+    border-top: 1px solid var(--border);
+  }
+  .arch-layers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin: 16px 0 22px;
+  }
+  .layer-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    background: var(--surface);
+  }
+  .layer-card .lab {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .layer-card.runtime .lab { color: var(--accent-2); }
+  .layer-card.offline .lab { color: var(--warn); }
+  .layer-card.deploy .lab { color: var(--accent); }
+  .layer-card ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-muted); }
+  .layer-card li { margin-bottom: 4px; }
+
+  /* ---------------------------------------------------------------- tables */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 22px; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); font-weight: 700; }
+  td.num { font-weight: 700; color: var(--accent); }
+
+  /* ---------------------------------------------------------------- stat tiles */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin: 16px 0 22px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+  }
+  .stat .n { font-size: 22px; font-weight: 800; color: var(--accent); }
+  .stat .l { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+
+  /* ---------------------------------------------------------------- responsibility grid */
+  .resp-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin: 18px 0 22px;
+  }
+  @media (min-width: 640px) { .resp-grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .resp-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    background: var(--surface);
+  }
+  .resp-card .who { font-weight: 800; font-size: 14px; margin-bottom: 8px; }
+  .resp-card.mine .who { color: var(--accent-2); }
+  .resp-card.claude .who { color: var(--accent); }
+  .resp-card.chatgpt .who { color: #8a5cf6; }
+  .resp-card ul { padding-left: 18px; font-size: 13px; color: var(--text-muted); margin: 0; }
+  .resp-card li { margin-bottom: 5px; }
+
+  /* ---------------------------------------------------------------- highlights */
+  .hl-list { display: flex; flex-direction: column; gap: 12px; margin: 18px 0 22px; }
+  .hl-item {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .hl-item .t { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }
+  .hl-item .d { font-size: 13.5px; color: var(--text-muted); }
+
+  /* ---------------------------------------------------------------- Q&A */
+  .qa { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin: 16px 0 22px; overflow: hidden; }
+  .qa-item { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .qa-item:last-child { border-bottom: none; }
+  .qa-q { font-weight: 700; font-size: 14.5px; margin-bottom: 6px; display: flex; gap: 8px; }
+  .qa-q .qmark { color: var(--accent); }
+  .qa-a { font-size: 13.5px; color: var(--text-muted); padding-left: 22px; }
+  .qa-a ul { margin: 4px 0 0; padding-left: 18px; }
+
+  /* ---------------------------------------------------------------- closing */
+  .closing {
+    background: linear-gradient(155deg, var(--accent-soft) 0%, var(--surface) 70%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 26px 24px;
+    margin: 18px 0 10px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 2;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-faint);
+    padding: 30px 20px 10px;
+  }
+
+  @media print {
+    nav.toc { display: none; }
+    .arch-embed iframe { height: 700px; }
+    section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Portfolio / Interview Profile</div>
+    <h1 class="title">Six Degrees of Wikipedia — 個人開発</h1>
+    <p class="tagline">Wikipedia上のリンクだけを辿り、任意の2人物間の最短経路を求めるWebアプリケーション。英語・日本語どちらの人名入力にも対応。個人開発、AIコーディングエージェント支援あり。</p>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="k">現在の状態</div>
+        <div class="v">最新タグ <code>v1.0.3</code> 以降、UI/グラフ刷新を継続中(SPEC v2.18、HTTP契約は不変)</div>
+      </div>
+      <div class="meta-item">
+        <div class="k">評価対象コミット (HEAD)</div>
+        <div class="v"><code>0fa5f6836e4895b80c97b980e209f78c110716b0</code></div>
+      </div>
+      <div class="meta-item">
+        <div class="k">GitHub リポジトリ</div>
+        <div class="v"><a href="https://github.com/dung1103022-prog/six-degrees-wikipedia" target="_blank" rel="noopener noreferrer">github.com/dung1103022-prog/six-degrees-wikipedia</a></div>
+      </div>
+      <div class="meta-item">
+        <div class="k">ライブデモ (Vercel)</div>
+        <div class="v"><a href="https://six-degrees-wikipedia-psi.vercel.app/" target="_blank" rel="noopener noreferrer">six-degrees-wikipedia-psi.vercel.app</a></div>
+      </div>
+      <div class="meta-item">
+        <div class="k">アーキテクチャ図</div>
+        <div class="v"><a href="architecture/six-degrees-v1.0.x-final-architecture.html" target="_blank" rel="noopener noreferrer">docs/architecture/six-degrees-v1.0.x-final-architecture.html</a>(本ページ内にも埋め込み、セクション E)</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="inner">
+    <a href="#why">B. なぜ作ったか</a>
+    <a href="#theory">C. Six Degrees とは</a>
+    <a href="#flow">D. アプリの動作</a>
+    <a href="#architecture">E. アーキテクチャ</a>
+    <a href="#responsibility">F. 担当範囲</a>
+    <a href="#highlights">G. 技術的ハイライト</a>
+    <a href="#numbers">H. 数値で見る成果</a>
+    <a href="#workflow">I. 開発・検証フロー</a>
+    <a href="#ai-workflow">J. AI支援開発</a>
+    <a href="#qa">K. 想定質問</a>
+    <a href="#closing">L. 最後に</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- ======================================================== B ======================================================== -->
+  <section id="why">
+    <h2 class="sec-title"><span class="letter">B</span>なぜこのプロジェクトを作ったのか</h2>
+    <p>直接は知り合いではない人同士でも、驚くほど少ない仲介者を介してつながっているという「スモールワールド」的な考え方に以前から興味がありました。この抽象的なアイデアを、実際にクエリを投げて、可視化して、自分で触って確かめられる何かに変えてみたいと思ったのが出発点です。</p>
+    <p>概念だけのデモを作って終わりにするのではなく、実際のWikipediaデータ、グラフ探索アルゴリズム、フロントエンドのグラフ可視化、そして再現可能なデータパイプラインを備えた、本物のWebアプリケーションとして作ることにしました。</p>
+    <div class="note">
+      正直に書いておくと、「Six Degrees(6次の隔たり)」は社会ネットワーク論・スモールワールド研究に由来する概念であり、「任意の2人が必ず6ステップ以内でつながる」という保証ではありません。本アプリは、その考え方を土台にした<strong>インタラクティブなグラフ探索アプリケーション</strong>です。実際の最短経路は0ステップ(同一人物)から、データセット中に経路が存在しない場合(<code>found: false</code>)まで、入力次第で変わります。
+    </div>
+  </section>
+
+  <!-- ======================================================== C ======================================================== -->
+  <section id="theory">
+    <h2 class="sec-title"><span class="letter">C</span>Six Degrees of Separation とは</h2>
+    <p>人物は社会グラフ上のノードとして表現でき、人間関係はそのノード間のエッジとして表現できます。2人の人物の間の「距離」は、その2人をつなぐ仲介関係の数として表現できます。</p>
+    <p>「6次の隔たり」というアイデアは、スモールワールド現象に関する研究、特にスタンレー・ミルグラムのよく知られたスモールワールド実験に由来します。一般に広まっている解釈は、社会ネットワークは驚くほど短い連鎖を通じて、遠く離れた個人同士をもつなげてしまう、というものです。</p>
+    <p>本プロジェクトは、このアイデアを<strong>インタラクティブなグラフ探索アプリケーションの発想の土台</strong>として使っています。ここは明確に区別しておきたい点です。</p>
+    <table>
+      <thead><tr><th>区分</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td><strong>理論・社会科学上の概念</strong></td><td>スモールワールド現象、ミルグラムの実験、「6次の隔たり」という通俗的な言い回し ── これらは本プロジェクトが検証・証明するものではありません。</td></tr>
+        <tr><td><strong>このプロジェクトで実装した graph search</strong></td><td>Wikipedia記事間のリンクを有向エッジとしたグラフ上で、BFS(幅優先探索)により2人物間の最短経路を実際に計算するプログラムです。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ======================================================== D ======================================================== -->
+  <section id="flow">
+    <h2 class="sec-title"><span class="letter">D</span>このWebアプリで何をしているか</h2>
+    <p class="lead">実際の処理フローは以下の通りです。</p>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-box">人物A → 人物B(英語 / 日本語のどちらでも入力可。<code>PersonCombobox</code>がクライアント側で入力補完)</div></div>
+      <div class="flow-arrow">↓ GET /api/search</div>
+      <div class="flow-step"><div class="flow-box alt">Resolver(英語・日本語のエイリアスを canonical name に解決)</div></div>
+      <div class="flow-desc">正規表記が完全一致すれば最優先。曖昧な場合は候補を全件返す(推測しない)。</div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box alt">BFS(隣接リスト上の幅優先探索、enqueue時にゴール判定)</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box">shortest path + levels(探索の各段階で発見されたノード一覧)</div></div>
+      <div class="flow-arrow">↓ 1回のHTTPレスポンスに全て含む</div>
+      <div class="flow-step"><div class="flow-box alt">GraphView(3d-force-graph / Three.js による3Dグラフ描画)</div></div>
+      <div class="flow-desc">レベルを一段ずつ、一定間隔でアニメーション表示。追加のAPI呼び出しやBFSは行わない。</div>
+    </div>
+
+    <h3>英語 / 日本語 / エイリアス解決</h3>
+    <p>入力された名前は、正規化(NFC・全角スペース処理など)の後、canonical name(英語版Wikipediaの正式タイトル)に解決されます。英語のリダイレクト、日本語のタイトル、日本語のリダイレクトが、すべて同一人物の canonical name に対応付けられています。このエイリアス解決は<strong>オフラインのFetcherが事前に計算</strong>したものであり、実行時にWikipediaへ問い合わせることは一切ありません。</p>
+
+    <h3>canonical name と曖昧解決</h3>
+    <p>完全一致する canonical name が最優先されます。入力の正規化後の形が複数の候補に一致する場合は「曖昧」と判定され、レスポンスには該当する候補が<strong>すべて</strong>、ソートされた状態で含まれます。どれか一つを推測で選ぶことはありません。</p>
+
+    <h3>BFS 最短経路</h3>
+    <p><code>backend/app/graph.py</code> の <code>shortest_path()</code> が、事前計算済みの有向グラフ(隣接リスト)上で幅優先探索を行います。ゴール判定を dequeue 時ではなく enqueue 時に行うことで、目的の人物が見つかった瞬間に探索を打ち切ります。</p>
+
+    <h3>levels と経路の可視化</h3>
+    <p>APIレスポンスには、最短経路そのものに加えて、BFSの各深さ(レベル)で発見されたノードの一覧(<code>levels</code>)が含まれます。フロントエンドはこの<code>levels</code>と<code>path</code>だけを使ってグラフを描画します ── 独自にBFSを再実行することも、新たなAPIを呼ぶこともありません。</p>
+
+    <h3>PersonCombobox(入力補完)と Search Log パネル</h3>
+    <p><code>PersonCombobox</code>は、起動時に一度だけ <code>GET /api/people</code> を呼び出し、以降はブラウザ内で完全にフィルタするクライアント専用のオートコンプリートです。新しいバックエンドのエンドポイントは追加していません。Search Log パネルは画面上「Connected」/「Disconnected」と表示されますが、実際にサーバーへ常時接続しているわけではありません ── すでに取得済みの<code>SearchResponse</code>を、グラフと同じレベル単位のタイマーでクライアント側だけで再生しているものです。</p>
+
+    <h3>share URL と OG メタデータ</h3>
+    <p><code>/share?p=A&p=B&...</code> は、渡された経路をサーバー側で <strong>再検証</strong>し(<code>validate_path</code>、<code>GET /api/path</code> と共通の関数)、有効な場合は Open Graph タグ(<code>og:title</code>、<code>og:image</code>、<code>og:url</code>)をHTMLに注入して返します。これにより、JavaScriptを実行しないチャットアプリのクローラでもプレビューが正しく表示されます。<code>og:url</code>のスキーム(http/https)はリクエストの実際のベースURLから組み立てられ、リバースプロキシ配下では <code>FORWARDED_ALLOW_IPS</code> で信頼するプロキシを明示することで正しいHTTPSが反映されます。</p>
+
+    <h3>検索履歴</h3>
+    <p>検索履歴は <code>localStorage</code> に最大20件、ブラウザ単位で保存されます。アカウントやサーバー側の保存は一切ありません。</p>
+
+    <h3>Docker ランタイム</h3>
+    <p>本番相当の実行環境は、フロントエンドのビルド成果物とバックエンド(FastAPI)、そして公式データセット(3つのJSONファイル)を1つのコンテナイメージに焼き込んだものです。実行時に外部ネットワークへ出る通信は一切なく、唯一の例外はブラウザが人物のサムネイル画像をWikimediaの画像CDNから直接読み込む通信です。</p>
+  </section>
+
+  <!-- ======================================================== E ======================================================== -->
+  <section id="architecture">
+    <h2 class="sec-title"><span class="letter">E</span>Architecture</h2>
+    <p class="lead">下記は <a href="https://github.com/tt-a1i/archify" target="_blank" rel="noopener noreferrer">Archify</a> で生成・検証済みのシステムアーキテクチャ図です(リポジトリの実装を実際に読んで作成 ── 手描きの簡略図ではありません)。</p>
+
+    <div class="arch-embed">
+      <iframe src="architecture/six-degrees-v1.0.x-final-architecture.html" title="Six Degrees of Wikipedia — System Architecture" loading="lazy"></iframe>
+      <div class="cap">埋め込みが正しく表示されない場合は <a href="architecture/six-degrees-v1.0.x-final-architecture.html" target="_blank" rel="noopener noreferrer">別タブで直接開く</a> ことができます。テーマ切り替え・パン/ズーム・ガイド付きビュー対応。</div>
+    </div>
+
+    <p>アーキテクチャは <strong>3つのフェーズ</strong>に明確に分かれています。混同しないことが重要です。</p>
+
+    <div class="arch-layers">
+      <div class="layer-card runtime">
+        <div class="lab">Runtime(デプロイされたコンテナ)</div>
+        <ul>
+          <li>Browser(React SPA)</li>
+          <li>FastAPI ── <code>/api/people</code> <code>/api/search</code> <code>/api/resolve</code> <code>/api/path</code> <code>/share</code></li>
+          <li>Resolver / BFS(純粋関数、メモリ上のみ)</li>
+          <li>RAM上のデータセット(起動時に1回だけロード)</li>
+        </ul>
+      </div>
+      <div class="layer-card offline">
+        <div class="lab">Offline / Build-time</div>
+        <ul>
+          <li>seed 名前リスト(入力)</li>
+          <li>Fetcher(手動実行、本番では一切動かない)</li>
+          <li>MediaWiki Action API</li>
+          <li><code>data/*.json</code>(検証済み・コミット済み)</li>
+        </ul>
+      </div>
+      <div class="layer-card deploy">
+        <div class="lab">Deployment</div>
+        <ul>
+          <li>Docker マルチステージビルド</li>
+          <li>Vercel Fluid Compute(<code>Dockerfile.vercel</code>)</li>
+          <li>HTTPSリバースプロキシ → <code>X-Forwarded-Proto</code> → <code>og:url</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <p><strong>Fetcher → data/*.json → Docker build → runtime image</strong> という一方向の流れが本プロジェクトの核となる設計です。Fetcherはランタイムのコンテナには一切含まれず(<code>httpx</code>依存すら入っていません)、データセットはDockerビルド時に <code>COPY</code> されてイメージに焼き込まれ、コンテナ起動時に一度だけRAMへロードされます。実行時にMediaWikiへ問い合わせることは設計上ありえません。</p>
+
+    <p>唯一の例外は、ブラウザが人物のサムネイル画像をWikimediaの画像CDNから直接読み込む通信です。これはバックエンドを経由せず、実行中のアプリケーションが引き起こす唯一の外部ネットワーク通信です。</p>
+  </section>
+
+  <!-- ======================================================== F ======================================================== -->
+  <section id="responsibility">
+    <h2 class="sec-title"><span class="letter">F</span>自分が担当したこと</h2>
+    <p class="lead">ここは正確に、そして正直に書きます。コードを一行ずつ自分の手で書いたわけではありません。AI支援によるワークフローを隠すつもりはありません。自分の役割は一貫して「<strong>設計・判断・指示・レビュー・検証・受け入れ</strong>」でした。</p>
+
+    <div class="resp-grid">
+      <div class="resp-card mine">
+        <div class="who">自分の担当</div>
+        <ul>
+          <li>要件整理・アーキテクチャ設計</li>
+          <li>SPEC.md の設計・全版の改訂(執筆時点で v2.18)</li>
+          <li>APIコントラクト・契約の定義</li>
+          <li>テストケースの設計・SPECとのトレーサビリティ設計</li>
+          <li>実装方針の指示</li>
+          <li>生成された実装のレビュー</li>
+          <li>デバッグ</li>
+          <li>統合検証・実ブラウザ検証</li>
+          <li>Docker検証・デプロイ検証</li>
+          <li>最終的な受け入れ判断</li>
+        </ul>
+      </div>
+      <div class="resp-card claude">
+        <div class="who">Claude Code(コーディングエージェント)</div>
+        <ul>
+          <li>自分の指示のもとでコードを実装・修正</li>
+          <li>ファイルの調査・変更の実行</li>
+          <li>テストの実行</li>
+          <li>リポジトリ操作(ブランチ作成、コミット準備など)の反復作業</li>
+        </ul>
+      </div>
+      <div class="resp-card chatgpt">
+        <div class="who">ChatGPT(技術的な計画・レビューの相談相手)</div>
+        <ul>
+          <li>タスクの構造化・分解</li>
+          <li>プロンプトの整理</li>
+          <li>実装結果や設計判断のレビュー観点の洗い出し</li>
+          <li>面接・ポートフォリオ用の説明文の整理</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Archify</h3>
+    <p>アーキテクチャ図の生成と、SPECおよび実装内容に対する図の妥当性検証に使用しました。本ページのセクションEの図も、Archifyで実際のソースコード(<code>backend/app/api.py</code>、<code>Dockerfile</code> など)を根拠として生成・検証したものです。</p>
+
+    <h3>デザインドキュメント</h3>
+    <p><code>sixth-degree.ranisaro.com-DESIGN.md</code> は、UI刷新(ダークテーマ、カードレイアウト、グラフの配色など)の視覚的なリファレンスとして使用しました。</p>
+
+    <div class="note">
+      AIツールが工学的な判断そのものを代替したわけではありません。「何を作るか」「どういう契約(コントラクト)にするか」「どのトレードオフを取るか」「テストは何を保証すべきか」「実装が受け入れ可能かどうか」は、すべて自分が決めています。AIが誤った実装をした場合の対応も含め、詳しくは <a href="#qa">K. 想定質問</a> をご覧ください。
+    </div>
+  </section>
+
+  <!-- ======================================================== G ======================================================== -->
+  <section id="highlights">
+    <h2 class="sec-title"><span class="letter">G</span>Technical highlights</h2>
+    <p class="lead">実際に実装済みの技術的判断のうち、特に説明価値が高いものを挙げます。</p>
+
+    <div class="hl-list">
+      <div class="hl-item">
+        <div class="t">1. BFS shortest-path search</div>
+        <div class="d">隣接リスト上の幅優先探索。ゴール判定を enqueue 時に行うことで、目的の人物が見つかった瞬間に打ち切る。決定性は「探索順序を特別扱いする」のではなく「探索前にデータをソート済みにしておく」ことで担保。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">2. 多言語対応リゾルバー / エイリアスシステム</div>
+        <div class="d">英語canonical、英語リダイレクト、日本語タイトル、日本語リダイレクトを同一人物に解決。曖昧な入力は候補を全件返す(推測しない)。Unicode正規化(NFC、全角スペースなど)を明示的な1行の式としてSPECに固定。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">3. オフラインデータセットパイプライン</div>
+        <div class="d">Fetcher(<code>backend/fetcher.py</code>)がMediaWiki Action APIから手動実行でデータを取得。実行間隔はWikimediaのRobot policyとレート制限ページを実際に確認した上で0.32秒に設定。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">4. トランザクショナルなデータセット差し替え</div>
+        <div class="d">3つの出力ファイルをセットで検証してからステージングに書き込み、全チェックを通過した場合のみ <code>data/</code> を差し替える。検証失敗時は既存データセットがそのまま残る。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">5. 実行時に外部ネットワーク依存がないランタイム</div>
+        <div class="d">データセットはDockerビルド時にイメージへ焼き込み、実行時はRAM上のデータのみを参照。<code>httpx</code>すらランタイムイメージにインストールされていない。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">6. 3Dグラフビュー(3d-force-graph / Three.js)</div>
+        <div class="d">当初はSigma.js(2D、WebGL)を採用していたが、SPEC v2.17で3d-force-graphへ切り替え、回転可能な3D球体状のレイアウトに刷新。描画データはSearchResponseの<code>levels</code>と<code>path</code>のみから構築し、独自のBFSやAPI呼び出しは行わない。矢印キー/WASDによるパン、視点リセットにも対応。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">7. 実ブラウザ・実WebGLでの検証</div>
+        <div class="d">ラベルの重なりや3D描画の黒画面クラッシュなど、自動テストでは構造的に検出できないバグを、実際のChromeで1440×900・390×844の両ビューポートで目視確認して発見・修正。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">8. Docker マルチステージビルド</div>
+        <div class="d">Node.jsでフロントエンドをビルドした後、Node自体は破棄し、<code>python:3.12-slim</code> にビルド済み静的ファイルと3つのデータセットJSONだけをコピー。ベースイメージはタグではなくdigestで固定し、再現可能なビルドを保証。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">9. リバースプロキシ配下でのHTTPS <code>og:url</code></div>
+        <div class="d"><code>uvicorn</code>標準の<code>FORWARDED_ALLOW_IPS</code>を利用し、信頼するプロキシのIP/CIDRを明示した場合のみ<code>X-Forwarded-Proto</code>を信頼、<code>og:url</code>のスキームを正しくHTTPSにする。デフォルトの挙動(未設定時はループバックのみ信頼)は変えない後方互換設計。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">10. Windows対応のネットワークガード</div>
+        <div class="d">バックエンドのテストスイートはソケットレベルで実ネットワークへのアクセスを遮断するガードを持つ。Windows固有の<code>asyncio</code>内部がループバックTCP通信を必要とする問題が発覚した際、ガード全体を緩めるのではなく「リテラルなループバックアドレスのみ許可(ホスト名解決はしない)」という最小限の修正で対応し、回帰テストを追加。</div>
+      </div>
+      <div class="hl-item">
+        <div class="t">11. 自動化されたSPECトレーサビリティ</div>
+        <div class="d">各テストが<code>@pytest.mark.spec("BFS-04")</code>や<code>@spec FE-03</code>のようなIDを持ち、SPEC.md内の対応表と照合される。必須IDにテストがない場合、または存在しないIDを参照するテストがある場合、テスト収集自体が失敗する仕組み。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== H ======================================================== -->
+  <section id="numbers">
+    <h2 class="sec-title"><span class="letter">H</span>数値で見る成果</h2>
+    <p class="lead">本ページ作成時点で実際にテストスイートを実行して確認した数値です。</p>
+
+    <div class="stats">
+      <div class="stat"><div class="n">9,997</div><div class="l">人物(people)</div></div>
+      <div class="stat"><div class="n">427,057</div><div class="l">有向エッジ</div></div>
+      <div class="stat"><div class="n">119,335</div><div class="l">エイリアス</div></div>
+      <div class="stat"><div class="n">281</div><div class="l">バックエンド pytest</div></div>
+      <div class="stat"><div class="n">134</div><div class="l">フロントエンド Vitest</div></div>
+      <div class="stat"><div class="n">415</div><div class="l">自動テスト合計</div></div>
+    </div>
+
+    <div class="note warn">
+      <strong>数値の更新について:</strong> リポジトリ内の <code>README.md</code> や <code>docs/portfolio-*.md</code> には「383件(280 + 103)」という古い数値が残っています。フロントエンドのグラフ描画ライブラリをSigma.jsから3d-force-graphへ刷新した際にテストが追加され、一時109件になった後、さらにPersonComboboxやSearch Logパネルなどの機能追加で134件まで増えています。本ページの数値(281 + 134 = 415)は、このドキュメントを作成する直前に実際に <code>pytest</code> と <code>npm test</code> を実行して確認した最新の値です。
+    </div>
+
+    <ul>
+      <li>Docker: マルチステージビルドしたイメージを <code>--network none</code>(オフライン)で起動し、<code>/</code>、<code>/api/people</code>、<code>/api/search</code>、<code>/api/path</code>、<code>/share</code> の各レスポンスとgraceful shutdownを確認済み。</li>
+      <li>Vercel: 本番デプロイが稼働中(<a href="https://six-degrees-wikipedia-psi.vercel.app/" target="_blank" rel="noopener noreferrer">six-degrees-wikipedia-psi.vercel.app</a>)。<code>GET /api/people</code> が実際に9,997件を返すことを確認済み。</li>
+    </ul>
+  </section>
+
+  <!-- ======================================================== I ======================================================== -->
+  <section id="workflow">
+    <h2 class="sec-title"><span class="letter">I</span>Development / verification workflow</h2>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-box">SPEC</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box alt">Test(テストケース先行設計)</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box">Implementation</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box alt">Unit / integration tests</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box">実データセット(9,997人・427,057エッジ)での動作確認</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box alt">実ブラウザ / 実WebGL 検証</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box">Docker(オフライン起動含む)</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-step"><div class="flow-box alt">Vercel 本番デプロイ</div></div>
+    </div>
+    <p>このワークフローを採用した理由は単純です。仕様が曖昧なまま実装すると、後から「これは仕様の穴だったのか、実装のバグだったのか」を判別できなくなります。SPECを先に書き、そこにテストIDを紐付けることで、実装が仕様からずれた瞬間にテストが失敗するようにしています。また、単体テストだけでは検出できない領域(WebGL描画、実際のDocker起動、本番相当のHTTPS環境)は、意図的に別の検証ステップとして残しています ── これらを「テストが通ったから大丈夫」で済ませないためです。</p>
+  </section>
+
+  <!-- ======================================================== J ======================================================== -->
+  <section id="ai-workflow">
+    <h2 class="sec-title"><span class="letter">J</span>AI-assisted development workflow</h2>
+    <p class="lead">人間の意思決定がAIに置き換わったわけではない、という点を明確にしておきたいので、実際のワークフローを時系列で示します。</p>
+
+    <div class="timeline">
+      <div class="timeline-row">
+        <div class="timeline-actor human">Human</div>
+        <div class="timeline-body"><div class="h">要件・アーキテクチャ・SPEC</div>何を作るか、どんな制約(データベースなし、実行時ネットワーク呼び出しなし等)を課すかを決定。</div>
+      </div>
+      <div class="timeline-row">
+        <div class="timeline-actor">ChatGPT</div>
+        <div class="timeline-body"><div class="h">Planning / review / task decomposition</div>大きなタスクを実行可能な単位に分解し、レビュー観点を整理する相談相手として利用。</div>
+      </div>
+      <div class="timeline-row">
+        <div class="timeline-actor">Claude Code</div>
+        <div class="timeline-body"><div class="h">Implementation / tests / repository operations</div>指示に基づいてコードを実装し、テストを実行し、リポジトリ操作を行う。</div>
+      </div>
+      <div class="timeline-row">
+        <div class="timeline-actor human">Human review + verification</div>
+        <div class="timeline-body"><div class="h">実装のレビューと検証</div>生成された実装を読み、SPECとの整合性を確認し、実ブラウザ・実Docker環境で動作を検証。</div>
+      </div>
+      <div class="timeline-row">
+        <div class="timeline-actor human">Acceptance</div>
+        <div class="timeline-body"><div class="h">受け入れ判断</div>最終的にマージ・リリースするかどうかを判断。</div>
+      </div>
+    </div>
+
+    <p>このプロセスで一貫していたのは、「<strong>AIが提案したから正しい</strong>」を判断基準にしなかったことです。AIが誤った実装をしたケースも実際にありました(例: 3Dグラフのライブラリ切り替え時に、コントロールの種類指定が既定値と食い違って発生した黒画面クラッシュ)。こうした問題は、実ブラウザでの動作確認や、SPECとの照合という人間側の検証ステップで発見し、修正指示を出しています。</p>
+  </section>
+
+  <!-- ======================================================== K ======================================================== -->
+  <section id="qa">
+    <h2 class="sec-title"><span class="letter">K</span>想定される質問と回答ポイント</h2>
+    <div class="qa">
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>なぜ BFS を使ったのですか?</div>
+        <div class="qa-a">最短経路問題であり、エッジに重みがない(単純な「リンクがあるかないか」)ため、重み付きグラフ向けのダイクストラ法などは不要でした。BFSはenqueue時にゴール判定を行うことで、目的の人物が見つかった時点で打ち切れるため、実測でも約1万ノード規模でミリ秒単位で完了します。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>resolver と alias を分離した理由は?</div>
+        <div class="qa-a">「入力文字列をそのままグラフのキーにする」設計だと、英語・日本語・リダイレクトのゆらぎがグラフ全体の複雑さに波及します。resolverを独立させることで、グラフ自体は英語canonical nameだけを扱う単純な構造を保ち、多言語対応の複雑さをresolver層に閉じ込められます。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>なぜ DB を使わなかったのですか?</div>
+        <div class="qa-a">個人開発・学習目的のプロジェクトであり、運用コストをほぼゼロに保つことを明示的な制約としました。データセットは不変(immutable)で、起動時に一度だけメモリへロードすれば十分な規模(1万人未満)だったため、DBが持つ利点(永続化、同時書き込み制御など)がそもそも必要ありませんでした。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>なぜ runtime で Wikipedia API を呼ばない設計にしたのですか?</div>
+        <div class="qa-a">レート制限、レイテンシ、そして自分が制御できない外部サービスへの本番依存を避けるためです。エイリアス解決や画像URLなど「事前に計算できるもの」はすべてオフラインのFetcherに寄せ、ランタイムは純粋にメモリ上の参照だけで完結する設計にしました。トレードオフとして、名前解決のカバレッジはFetcherが取得した範囲に限定されます。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>Claude Code をどう使いましたか?</div>
+        <div class="qa-a">自分がSPECと実装方針を決めた上で、実際のコード変更・テスト実行・リポジトリ操作を指示して行わせるコーディングエージェントとして使いました。設計判断そのものはAIに委ねず、生成された実装は必ず自分でレビューしています。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>AI が間違えたときどう対応しましたか?</div>
+        <div class="qa-a">3Dグラフライブラリ(3d-force-graph)への切り替え時、コントロールの種類が既定の"trackball"のままだったため、キーボードパン機能を呼び出した瞬間に例外が発生し、画面が黒くなるバグが実ブラウザ検証で見つかりました。単体テストはWebGLをモックしているため検出できず、実ブラウザでの確認によって発見し、明示的に <code>controlType: "orbit"</code> を指定する修正を指示しました。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>実ブラウザ検証をなぜ行いましたか?</div>
+        <div class="qa-a">WebGL描画はテスト環境(jsdom)に存在しないため、自動テストでは構造的にモックせざるを得ません。ラベルの重なりや3D描画のクラッシュなど、モックされた層の「向こう側」で起きるバグは、実際にChromeを立ち上げて複数のビューポートサイズで目視確認しないと発見できませんでした。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>Docker / Vercel deployment で苦労した点は?</div>
+        <div class="qa-a">Vercelは通常の「なんでも動くコンテナホスティング」ではなく、<code>Dockerfile.vercel</code>という専用の命名規則でFluid Computeという独自の実行モデルにデプロイする仕組みでした。既存の<code>Dockerfile</code>と重複させないため、<code>Dockerfile.vercel</code>を<code>Dockerfile</code>へのgitシンボリックリンクとして構成し、アーキテクチャを変えずに両対応させました。またリバースプロキシ配下でのHTTPSスキーム反映は、<code>FORWARDED_ALLOW_IPS</code>を明示的に設定する必要がある、という一段特有の注意点があります。</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q"><span class="qmark">Q.</span>Six Degrees の「6」はこのアプリでどう扱っていますか?</div>
+        <div class="qa-a">アプリ内では「6」という数字自体をハードコードした制約や保証にはしていません。BFSは経路が存在する限り、何ステップであっても実際の最短経路を返します(0ステップ=同一人物から、データセット内に経路がなければ<code>found: false</code>まで)。「6次の隔たり」はプロジェクトの発想の出発点であり、アプリの動作契約ではありません。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== L ======================================================== -->
+  <section id="closing">
+    <h2 class="sec-title"><span class="letter">L</span>最後</h2>
+    <div class="closing">
+      「このプロジェクトでは、単に機能を実装するのではなく、<br>
+      仕様設計 → テスト → 実装 → 実データ検証 → ブラウザ検証 →<br>
+      Docker → 本番デプロイまで一通り経験した。」
+    </div>
+    <p>誇張したことを書くつもりはありません。実装の多くはAIコーディングエージェントの支援を受けており、それを隠すこともしません。自分が一貫して担ってきたのは、何を作るか・どう検証するか・受け入れるかどうかという判断です。</p>
+  </section>
+
+</div>
+
+<footer>Six Degrees of Wikipedia (Python) — 個人開発プロフィール · 作成: Claude Code 支援</footer>
+
+</body>
+</html>

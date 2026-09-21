@@ -5,9 +5,12 @@ implementation spec through 15 versions, made every trade-off decision recorded 
 implementation against that spec using an AI coding agent (Claude Code) under test-first,
 spec-traced discipline. No team; every architecture decision, ADR, and scope cut below is mine.
 
-**Repository:** private / local at time of writing. **Stack:** Python 3.12 / FastAPI, React 19 /
-TypeScript / Sigma.js, Docker. **Status:** all four planned phases shipped; 383 automated tests
-passing; official dataset generated and committed.
+**Repository:** [github.com/dung1103022-prog/six-degrees-wikipedia](https://github.com/dung1103022-prog/six-degrees-wikipedia).
+**Stack:** Python 3.12 / FastAPI, React 19 / TypeScript / `3d-force-graph` (Three.js), Docker.
+**Status:** all four planned phases shipped; 415 automated tests passing (281 backend + 134
+frontend); official dataset generated and committed. Last tagged release is `v1.0.3`; an English UI
+switch, a Sigma.js→3d-force-graph rewrite, and Vercel deployment support have shipped since that
+tag — this document describes current `HEAD`, not the tag.
 
 ---
 
@@ -45,13 +48,14 @@ resolve purely in RAM**, and **one HTTP response instead of a WebSocket** (detai
 ## 3. Architecture
 
 ```
-Browser (React SPA, Sigma.js)
+Browser (React SPA, 3d-force-graph/Three.js)
    │  HTTP: SPA · /api/* · /share
    ▼
 FastAPI backend ──serves──► dist/ (built SPA: static files + SPA fallback)
    │
-   ├─ GET /api/search, /api/resolve, /api/path   (the SPA itself only calls /api/search, /api/path)
-   ├─ GET /api/people, /share                     (public API / share-preview, not called by the SPA)
+   ├─ GET /api/search, /api/path   (the search + share flow the SPA actually calls)
+   ├─ GET /api/people               (PersonCombobox autocomplete only — one call, client-cached)
+   ├─ GET /api/resolve, /share      (public API / share-preview)
    │
    ├─ Resolver (pure, in-RAM)   EN/JA text → canonical name
    ├─ BFS / Graph (pure, in-RAM)  shortest path
@@ -62,11 +66,15 @@ Dataset JSON, read-only, loaded once into RAM
 data/*.json (repo)
    ▲  written only by the offline fetcher
 Fetcher (run by hand, sequential, rate-limited) → MediaWiki Action API
+
+Deployment: one Dockerfile (multi-stage, digest-pinned). `Dockerfile.vercel` is a git symlink to
+it, so Vercel's Fluid Compute builds and runs the exact same image (listens on $PORT).
 ```
 
 The browser also fetches person thumbnails directly from Wikimedia's image CDN — by design, the
 *only* outbound network call the running application ever makes (ADR-009). Everything else in the
-diagram above is a single Python process serving one container.
+diagram above is a single Python process serving one container, deployed both as a self-hosted
+Docker container and on Vercel.
 
 I chose this shape for three reasons I'd stand behind again:
 
@@ -152,33 +160,53 @@ specific inputs that had bitten me during manual testing, rather than leaving it
 
 ## 6. Frontend and the graph view
 
-React 19 + TypeScript + Vite, with Sigma.js (WebGL) and Graphology drawing exactly what
-`GET /api/search` already returns — I deliberately didn't add a field or endpoint just to make the
-drawing nicer, because that would mean the visualization could show something the API contract
-doesn't actually promise.
+React 19 + TypeScript + Vite. The display UI was originally Japanese; I switched it to English
+(SPEC v2.16, after the `v1.0.3` tag) — the one exception is `og:title` from `/share`, which stays in
+its original Japanese format on purpose, since that change was scoped to on-screen UI only.
 
-The graph:
+The graph-rendering library changed too: at the `v1.0.3` tag it was Sigma.js (2D, WebGL canvas) +
+Graphology; SPEC v2.17 replaced it with **`3d-force-graph`** (Three.js, WebGL) — a rotatable, zoomable
+3D sphere. In both versions, the only data drawn is whatever `GET /api/search` already returned
+(`levels`, `path`) — I deliberately didn't add a field or endpoint just to make the drawing nicer,
+because that would mean the visualization could show something the API contract doesn't actually
+promise.
 
-- places the whole found path on one ray from the center, one concentric ring per BFS level, so the
-  eye can follow "how far did we search" and "which nodes are on the answer" at the same time;
-- reveals one ring at a time on a fixed timer, animating a result that actually arrived in a single
+The current graph:
+
+- gives every node (path or explored) a fixed position on its BFS level's spherical shell — only the
+  start node sits at the exact center (SPEC v2.18). The path is no longer a separate straight-ray
+  layout, just a color/size distinction, so tracing it zigzags across the shells in BFS order;
+- shows a hover tooltip with the person's name on any node (`3d-force-graph`'s own `nodeLabel`);
+- supports drag-to-rotate and scroll/pinch-to-zoom (`OrbitControls`), plus arrow-key/WASD panning and
+  a "Reset view" button that flies the camera back to its initial framing (SPEC v2.18);
+- reveals one level at a time on a fixed timer, animating a result that actually arrived in a single
   HTTP response — the "streaming" feeling without an actual stream;
-- fades unrelated explored nodes based on how far they are from the start, so density reads as depth
-  at a glance rather than as noise.
+- mounts the "Network Visualization" panel even before a search runs, as an empty scene (SPEC v2.17)
+  — it used to only mount after a result existed;
+- turns each name in a found path into a link to that person's Wikipedia page (SPEC v2.17).
 
-I kept Sigma out of the automated test suite on purpose (it needs WebGL, which doesn't exist in a
-DOM test environment): the pure data-transform that builds the graph is unit-tested directly, the
-component that wires it to Sigma is tested against a hand-written fake `Sigma` class that records
-what it was asked to draw, and every other test just mocks `GraphView` away entirely. That trade-off
-had a real cost I had to pay for directly, described in the next section.
+Two more UI pieces shipped after `v1.0.3` worth naming directly:
+
+- **`PersonCombobox`** — client-only autocomplete on the Start/End fields, backed by one
+  `GET /api/people` call (already existed, cached in the browser) filtered entirely client-side; no
+  new backend route, per the explicit scope SPEC v2.16 allows.
+- **The Search Log panel** — a client-side replay of the same `SearchResponse` the graph already has,
+  timed to the same per-level reveal. Its "Connected"/"Disconnected" label means "a search is in
+  flight or done," not an actual live connection — there is no socket behind it.
+
+I kept WebGL out of the automated test suite on purpose in both eras (it doesn't exist in a DOM test
+environment): the pure data-transform that builds the graph is unit-tested directly, the component
+that wires it to the rendering library is tested against a hand-written fake class that records what
+it was asked to draw, and every other test just mocks `GraphView` away entirely. That trade-off had a
+real cost I had to pay for directly, described in the next section.
 
 ## 7. Testing
 
 | | Tool | Count |
 |---|---|---|
-| Backend | `pytest` | 280 |
-| Frontend | `vitest` + Testing Library | 103 |
-| **Total** | | **383** |
+| Backend | `pytest` | 281 |
+| Frontend | `vitest` + Testing Library | 134 |
+| **Total** | | **415** |
 
 The part I'm most satisfied with isn't the count — it's that every one of those tests is tied to a
 named requirement, and the tie is enforced by tooling, not convention. Each test carries an ID
@@ -196,11 +224,15 @@ Two things I'd call out as genuinely useful decisions rather than just "wrote te
   a hostname, since that would itself be a network call) instead of weakening it broadly — and wrote
   a dedicated test file that exercises the *installed* guard directly, so a regression here fails
   loudly.
-- **GraphView's two real bugs never showed up in `vitest`, by construction** — Sigma is mocked out
-  everywhere except one file, and that file mocks Sigma too (just not `GraphView`). I found the
-  actual label-overlap and label-clipping bugs by loading the real app in Chrome with real WebGL, at
-  both a 1440×900 and a 390×844 viewport, which is also how I verified the fix — screenshots and
-  console-error checks, not just "the unit tests still pass."
+- **GraphView bugs that never showed up in `vitest`, by construction** — WebGL is mocked out
+  everywhere except one file, and that file mocks the rendering library too (just not `GraphView`).
+  In the Sigma.js era I found real label-overlap and label-clipping bugs this way, at both a
+  1440×900 and a 390×844 viewport. After the switch to `3d-force-graph`, the same blind spot let a
+  black-screen crash through: the library defaults to `"trackball"` controls, which have no
+  `.listenToKeyEvents`, so the WASD-pan feature threw the moment it mounted. Both times I found and
+  verified the fix by loading the real app in Chrome with real WebGL — screenshots and console-error
+  checks, not just "the unit tests still pass" — and locked the second one in with a regression test
+  asserting `controlType: "orbit"` is actually passed.
 
 ## 8. Docker
 
@@ -218,6 +250,11 @@ build today and a build next year use the exact same base layers. Behind a rever
 still needs the request's real (HTTPS) scheme rather than the plain-HTTP connection uvicorn sees
 from the proxy; uvicorn's own `FORWARDED_ALLOW_IPS` setting handles that, so an operator can name
 the proxy's trusted IP/CIDR without any code change.
+
+Since the `v1.0.3` tag, this also deploys to **Vercel's Fluid Compute**. Vercel detects containers
+through a specifically-named `Dockerfile.vercel`, so rather than maintain a second Dockerfile I made
+it a git symlink to the real `Dockerfile` — same build, same image, one extra deploy target, zero
+duplicated logic.
 
 ## 9. Dataset
 
@@ -254,20 +291,30 @@ sample or a mock.
   outright, which had been silently papered over with an undocumented local shim. I fixed the guard
   itself — allow literal loopback only, still block everything else, no hostname resolution — and
   added a regression test that exercises the installed guard directly rather than a copy of it.
-- **A bug class my own test suite structurally couldn't catch.** Sigma needs WebGL, so it's mocked
-  out of every automated test by design (ADR-014) — which also means label overlap and edge-clipping
-  bugs in the real renderer were invisible to `vitest` no matter how many tests I added. I caught and
-  fixed both by manually driving a real Chrome instance against the running app at two viewport
-  sizes and checking the rendered pixels, not just the test output.
+- **A bug class my own test suite structurally couldn't catch.** WebGL renderers need WebGL, so
+  they're mocked out of every automated test by design (ADR-014) — which also means real-renderer-only
+  bugs are invisible to `vitest` no matter how many tests I added. In the Sigma.js era that was label
+  overlap and edge-clipping; after switching to `3d-force-graph`, it was a black-screen crash from the
+  library's default `"trackball"` controls lacking the method the new WASD-pan feature called. I caught
+  and fixed both classes by manually driving a real Chrome instance against the running app and
+  checking the rendered pixels and console, not just the test output.
+- **A graph-library swap and a UI-language switch, done without touching the HTTP contract.** After
+  the `v1.0.3` tag, I moved the display UI from Japanese to English and replaced Sigma.js + Graphology
+  with `3d-force-graph` (Three.js) for a rotatable 3D view — both scoped explicitly in the spec as
+  implementation/visual decisions ADR-014 already left open, so neither one touched `/api/*` or
+  `/share`'s actual contract.
 
 ## 11. Results
 
-- All four planned phases shipped against a spec I revised 15 times as real constraints (a rate-limit
-  policy, a Unicode edge case, a library deprecation, a rendering bug only visible in a real browser)
-  pushed back on my first-pass assumptions — every revision dated and reasoned about in the spec's
-  own changelog, not lost in commit messages.
-- 383 automated tests, each traced to a named requirement, with tooling that fails the build if that
-  traceability ever breaks in either direction.
+- All four planned phases shipped against a spec that's since gone through 18 revisions (currently
+  `SPEC.md` v2.18) as real constraints (a rate-limit policy, a Unicode edge case, a library
+  deprecation, rendering bugs only visible in a real browser, and — after `v1.0.3` — a UI-language
+  switch and a full graph-library swap) pushed back on my assumptions — every revision dated and
+  reasoned about in the spec's own changelog, not lost in commit messages.
+- 415 automated tests (281 backend, 134 frontend), each traced to a named requirement, with tooling
+  that fails the build if that traceability ever breaks in either direction.
+- Deployed and verified in production on Vercel's Fluid Compute (`Dockerfile.vercel`, a git symlink
+  to the same `Dockerfile`), in addition to self-hosted Docker.
 - The fetcher I wrote produced the real, official dataset — 9,997 people, 427,057 edges, 119,335
   aliases, 0 ambiguous match keys — not a fixture or a sample.
 - The entire system — API, share previews with server-rendered OG tags, and the SPA — runs from one
