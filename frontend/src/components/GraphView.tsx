@@ -56,7 +56,15 @@ export default function GraphView({ response }: { response: SearchResponse | nul
   // something to fly back to; 3d-force-graph's own default for an as-yet-empty graph.
   const home = useRef<{ x: number; y: number; z: number } | null>(null);
   const graph = useMemo(() => (response ? buildGraph(response) : EMPTY_GRAPH), [response]);
-  const visible = useLevelAnimation(response?.levels.length ?? 0, response);
+  // The reveal animation must run out to the deepest level *actually drawn* (design: 2026-09-21,
+  // fix for "path bi nut giua chung"): `response.levels.length` alone is not that ceiling. A path
+  // node absent from every `levels[]` entry (buildGraph.ts's fallback, e.g. under bidirectional
+  // BFS where `levels` only reflects one side's frontier) is drawn on the shell for its own path
+  // index, which can be >= levels.length -- so capping the animation there left such nodes, and
+  // the path links touching them, permanently below the `node.level < visibleLevels` cutoff in
+  // ../graph/style.ts and never revealed.
+  const levelCount = graph.nodes.reduce((max, node) => Math.max(max, node.level + 1), 0);
+  const visible = useLevelAnimation(levelCount, response);
   const [unavailable, setUnavailable] = useState(false);
   // How many nodes the levels revealed so far actually list (design: "Nodes explored" counter) — a
   // straight sum over data already in the response, not a count read back from the 3D scene.

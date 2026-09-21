@@ -161,6 +161,21 @@ describe("GraphView", () => {
     expect(fg.data.links).toHaveLength(PATH.length - 1); // the whole path is there
   });
 
+  it("eventually reveals every path link, even one whose nodes never appear in `levels` (bug found 2026-09-21: a long real path, e.g. bidirectional BFS, can leave `levels` shorter than the path)", () => {
+    // 5-node path, but `levels` only covers the first 2 of them (S, a1) -- P1/P2/T fall back to
+    // buildGraph's path-index shelving (level 2/3/4), well past `levels.length` (2). The old code
+    // capped the reveal animation at `response.levels.length` and could never show them.
+    const response = makeResponse([["S"], ["a1"]], ["S", "P1", "P2", "T"]);
+    render(<GraphView response={response} />);
+    const fg = h.instances[0]!;
+
+    advance(LEVEL_MS * 10); // let the animation run out, how ever many levels it turns out to need
+    // a1 (level 1, from `levels`) is drawn too, same as it always would be -- the fix only widens how
+    // far the animation runs, it does not change what counts as "explored" at each level.
+    expect(fg.data.nodes.map((n) => n.id).sort()).toEqual(["P1", "P2", "S", "T", "a1"]);
+    expect(fg.data.links).toHaveLength(3); // S-P1, P1-P2, P2-T: the whole path, not just its tail
+  });
+
   it("draws the found path highlighted, with 4 distinct semantic colors (start/end/path/explored)", () => {
     render(<GraphView response={RESPONSE} />);
     const fg = h.instances[0]!;
