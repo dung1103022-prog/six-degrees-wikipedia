@@ -25,7 +25,7 @@
 
 - **バックエンド:** Python 3.12 / FastAPI 0.141 / Pydantic 2.13(データベースなし)
 - **フロントエンド:** React 19 / TypeScript / Vite、Sigma.js 3 + Graphology(グラフ描画)
-- **インフラ:** Docker(マルチステージビルド、単一コンテナ運用)
+- **インフラ:** Docker(マルチステージビルド、単一コンテナ運用、ベースイメージはdigest固定、`FORWARDED_ALLOW_IPS`でリバースプロキシ配下のHTTPSスキームに対応)
 - **テスト:** pytest / Vitest + Testing Library
 
 ## 技術的に工夫した点(4点)

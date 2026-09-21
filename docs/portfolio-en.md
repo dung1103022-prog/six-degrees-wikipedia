@@ -213,6 +213,12 @@ the `fetcher` and `test` extras (httpx, pytest) never make it into the runtime i
 the dataset means rebuilding the image — there's no volume mount, no "hot reload the data" path, on
 purpose.
 
+Both base images (`node:24-slim`, `python:3.12-slim`) are pinned by digest, not just tag, so a
+build today and a build next year use the exact same base layers. Behind a reverse proxy, `og:url`
+still needs the request's real (HTTPS) scheme rather than the plain-HTTP connection uvicorn sees
+from the proxy; uvicorn's own `FORWARDED_ALLOW_IPS` setting handles that, so an operator can name
+the proxy's trusted IP/CIDR without any code change.
+
 ## 9. Dataset
 
 **9,997 people · 427,057 directed edges · 119,335 aliases** — 98,578 English redirects, 12,347
