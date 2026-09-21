@@ -1,6 +1,6 @@
 // SPEC §5.6, §7.9 — FE-04: the /share page.
 // It calls GET /api/path with exactly the `p` list of the URL and never validates a path itself.
-// UI language is Vietnamese (Q-3): the invalid-link message contains "không còn hợp lệ".
+// UI language is English: the invalid-link message contains "no longer valid".
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
@@ -11,7 +11,7 @@ import { errorReply, mockApi, navigate, pathResponse, personMeta, searchResponse
 const A = personMeta("A");
 const B = personMeta("B");
 const C = personMeta("C");
-const INVALID = /không còn hợp lệ/i;
+const INVALID = /no longer valid/i;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const pQuery = (names: string[]) => `/share?${new URLSearchParams(names.map((n) => ["p", n]))}`;
@@ -23,7 +23,7 @@ describe("/share page", () => {
 
     render(<App />);
 
-    const list = await screen.findByRole("list", { name: "Đường đi" });
+    const list = await screen.findByRole("list", { name: "Path" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(3);
     ["A", "B", "C"].forEach((name, i) => expect(items[i]).toHaveTextContent(name));
@@ -59,7 +59,7 @@ describe("/share page", () => {
     render(<App />);
 
     expect(await screen.findByText(INVALID)).toBeInTheDocument();
-    const list = await screen.findByRole("list", { name: "Đường đi" });
+    const list = await screen.findByRole("list", { name: "Path" });
     expect(within(list).getAllByRole("listitem")[1]).toHaveTextContent("X");
     expect(calls.map((c) => c.pathname)).toEqual(["/api/path", "/api/search"]); // in this order, nothing else
     expect(calls[1]!.searchParams.get("from")).toBe("A");
@@ -77,7 +77,7 @@ describe("/share page", () => {
     render(<App />);
 
     expect(await screen.findByText(INVALID)).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/không tìm thấy/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not find/i);
   });
 
   it.each([
@@ -93,7 +93,7 @@ describe("/share page", () => {
     await sleep(50); // give a wrongly-issued search the time to happen
     expect(calls.map((c) => c.pathname)).toEqual(["/api/path"]);
     expect(calls[0]!.searchParams.getAll("p")).toEqual(names);
-    expect(screen.queryByRole("list", { name: "Đường đi" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Path" })).not.toBeInTheDocument();
   });
 
   it("@spec FE-04 under React StrictMode (effects run twice) /api/path is still called once and the path is shown", async () => {
@@ -102,7 +102,7 @@ describe("/share page", () => {
 
     render(<App />, { wrapper: StrictMode });
 
-    expect(await screen.findByRole("list", { name: "Đường đi" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "Path" })).toBeInTheDocument();
     await sleep(50);
     expect(calls.map((c) => c.pathname)).toEqual(["/api/path"]);
   });
@@ -113,7 +113,7 @@ describe("/share page", () => {
 
     render(<App />);
 
-    const list = await screen.findByRole("list", { name: "Đường đi" });
+    const list = await screen.findByRole("list", { name: "Path" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(1);
     await sleep(50);
     expect(calls.map((c) => c.pathname)).toEqual(["/api/path"]);
@@ -126,7 +126,7 @@ describe("/share page", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/không thể tải/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load the path/i);
     await sleep(50);
     expect(screen.queryByText(INVALID)).not.toBeInTheDocument();
     expect(calls.map((c) => c.pathname)).toEqual(["/api/path"]);
@@ -148,14 +148,14 @@ describe("/share page", () => {
     render(<App />);
 
     expect(await screen.findByText(INVALID)).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/không rõ ràng/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/is ambiguous/i);
     await user.click(screen.getByRole("button", { name: /Person Two/ }));
 
     await waitFor(() => expect(callsTo("/api/search")).toHaveLength(2));
     const again = callsTo("/api/search")[1]!;
     expect(again.searchParams.get("from")).toBe("Person Two");
     expect(again.searchParams.get("to")).toBe("C"); // the last p, unchanged
-    expect(await screen.findByRole("list", { name: "Đường đi" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "Path" })).toBeInTheDocument();
     expect(screen.getByText(INVALID)).toBeInTheDocument(); // the invalid-link message stays
     expect(callsTo("/api/path")).toHaveLength(1); // the path is not asked for again
   });

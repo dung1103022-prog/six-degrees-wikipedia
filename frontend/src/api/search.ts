@@ -40,7 +40,7 @@ export async function searchPeople(from: string, to: string): Promise<SearchOutc
   try {
     response = await fetch(`/api/search?${query.toString()}`);
   } catch {
-    return { ok: false, failure: { kind: "other", reason: "không kết nối được tới máy chủ" } };
+    return { ok: false, failure: { kind: "other", reason: "could not connect to the server" } };
   }
 
   let body: unknown = null;
@@ -53,10 +53,10 @@ export async function searchPeople(from: string, to: string): Promise<SearchOutc
   if (response.ok) {
     return isSearchResponse(body)
       ? { ok: true, response: body }
-      : { ok: false, failure: { kind: "other", reason: "máy chủ trả về dữ liệu không đúng dạng" } };
+      : { ok: false, failure: { kind: "other", reason: "server returned data in an unexpected format" } };
   }
 
   const detail = errorDetailOf(body);
-  if (detail === null) return { ok: false, failure: { kind: "other", reason: `lỗi HTTP ${response.status}` } };
+  if (detail === null) return { ok: false, failure: { kind: "other", reason: `HTTP error ${response.status}` } };
   return { ok: false, failure: { kind: detail.code === "AMBIGUOUS_NAME" ? "ambiguous" : "unresolved", detail } };
 }

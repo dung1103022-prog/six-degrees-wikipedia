@@ -30,9 +30,9 @@ function expectNoBrokenImages(): void {
 async function runSearch() {
   const user = userEvent.setup();
   render(<App />);
-  await user.type(screen.getByLabelText("Từ"), "No Photo");
-  await user.type(screen.getByLabelText("Đến"), "With Photo");
-  await user.click(screen.getByRole("button", { name: "Tìm đường" }));
+  await user.type(screen.getByLabelText("Start Person"), "No Photo");
+  await user.type(screen.getByLabelText("End Person"), "With Photo");
+  await user.click(screen.getByRole("button", { name: "Start Search" }));
   return user;
 }
 
@@ -42,7 +42,7 @@ describe("thumbnail = null", () => {
 
     await runSearch();
 
-    const list = await screen.findByRole("list", { name: "Đường đi" });
+    const list = await screen.findByRole("list", { name: "Path" });
     const [noPhoto, withPhoto] = within(list).getAllByRole("listitem") as [HTMLElement, HTMLElement];
     expect(noPhoto).toHaveTextContent("No Photo");
     expect(within(noPhoto).getByTestId(PLACEHOLDER)).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe("thumbnail = null", () => {
 
     await runSearch();
 
-    const list = await screen.findByRole("list", { name: "Đường đi" });
+    const list = await screen.findByRole("list", { name: "Path" });
     expect(within(list).getAllByTestId(PLACEHOLDER)).toHaveLength(2);
     expect(document.querySelectorAll("img")).toHaveLength(0);
   });
@@ -83,7 +83,7 @@ describe("thumbnail = null", () => {
 
     render(<App />);
 
-    const list = await screen.findByRole("list", { name: "Đường đi" });
+    const list = await screen.findByRole("list", { name: "Path" });
     const [noPhoto, withPhoto] = within(list).getAllByRole("listitem") as [HTMLElement, HTMLElement];
     expect(noPhoto).toHaveTextContent("No Photo");
     expect(within(noPhoto).getByTestId(PLACEHOLDER)).toBeInTheDocument();

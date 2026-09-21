@@ -1,6 +1,6 @@
 // History on the search page (SPEC ADR-006, Q-15): a successful search is remembered in localStorage, listed,
 // and a click on an entry searches again. UI language is Vietnamese (Q-3): the list is the region
-// "Lịch sử tìm kiếm", one button per entry, its text holding the two names.
+// "Search History", one button per entry, its text holding the two names.
 //
 // SPEC N-4: what an entry holds and how a repeated entry is treated are NOT contract, and no test locks them.
 // So these tests look at the page, not at the stored JSON, and never repeat an entry. (Where a test has to
@@ -14,7 +14,7 @@ import { HISTORY_LIMIT, HISTORY_STORAGE_KEY, type HistoryEntry } from "../src/li
 import { errorReply, mockApi, personMeta, searchResponse } from "./helpers/api";
 import { makeResponse } from "./helpers/graph";
 
-const REGION = "Lịch sử tìm kiếm";
+const REGION = "Search History";
 
 const preload = (entries: HistoryEntry[]) => window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries));
 const entry = (i: number): HistoryEntry => ({ from: `From ${i}`, to: `To ${i}` });
@@ -27,9 +27,9 @@ function apiResolvingTo(from: string, to: string) {
 }
 
 async function submit(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
-  await user.type(screen.getByLabelText("Từ"), from);
-  await user.type(screen.getByLabelText("Đến"), to);
-  await user.click(screen.getByRole("button", { name: "Tìm đường" }));
+  await user.type(screen.getByLabelText("Start Person"), from);
+  await user.type(screen.getByLabelText("End Person"), to);
+  await user.click(screen.getByRole("button", { name: "Start Search" }));
 }
 
 describe("search history", () => {
@@ -47,7 +47,7 @@ describe("search history", () => {
 
     await submit(user, "Einstein", "Tesla");
 
-    await screen.findByRole("list", { name: "Đường đi" });
+    await screen.findByRole("list", { name: "Path" });
     const [only] = historyButtons();
     expect(historyButtons()).toHaveLength(1);
     expect(only).toHaveTextContent("Albert Einstein");
@@ -101,7 +101,7 @@ describe("search history", () => {
     await submit(user, "X", "Zed");
     await user.click(await screen.findByRole("button", { name: /Person Two/ }));
 
-    await screen.findByRole("list", { name: "Đường đi" });
+    await screen.findByRole("list", { name: "Path" });
     expect(historyButtons()).toHaveLength(1);
     expect(historyButtons()[0]).toHaveTextContent("Person Two");
     expect(historyButtons()[0]).toHaveTextContent("Zed");
@@ -112,7 +112,7 @@ describe("search history", () => {
     const user = userEvent.setup();
     const first = render(<App />);
     await submit(user, "Alice", "Bob");
-    await screen.findByRole("list", { name: "Đường đi" });
+    await screen.findByRole("list", { name: "Path" });
     first.unmount();
     calls.length = 0;
 
@@ -142,13 +142,13 @@ describe("search history", () => {
 
     await user.click(historyButtons()[0]!);
 
-    await screen.findByRole("list", { name: "Đường đi" });
+    await screen.findByRole("list", { name: "Path" });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.pathname).toBe("/api/search");
     expect(calls[0]!.searchParams.get("from")).toBe("Albert Einstein");
     expect(calls[0]!.searchParams.get("to")).toBe("Nikola Tesla");
-    expect(screen.getByLabelText("Từ")).toHaveValue("Albert Einstein");
-    expect(screen.getByLabelText("Đến")).toHaveValue("Nikola Tesla");
+    expect(screen.getByLabelText("Start Person")).toHaveValue("Albert Einstein");
+    expect(screen.getByLabelText("End Person")).toHaveValue("Nikola Tesla");
   });
 
   it("a click on an entry whose search now fails shows the error like any search", async () => {
@@ -159,7 +159,7 @@ describe("search history", () => {
 
     await user.click(historyButtons()[0]!);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/không tìm thấy/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not find/i);
   });
 
   it(`keeps at most ${HISTORY_LIMIT} entries: with a full history, one more search drops the oldest`, async () => {
@@ -171,7 +171,7 @@ describe("search history", () => {
 
     await submit(user, "New A", "New B");
 
-    await screen.findByRole("list", { name: "Đường đi" });
+    await screen.findByRole("list", { name: "Path" });
     const texts = historyButtons().map((b) => b.textContent ?? "");
     expect(texts).toHaveLength(HISTORY_LIMIT);
     expect(texts.some((t) => t.includes("New A") && t.includes("New B"))).toBe(true);
@@ -193,7 +193,7 @@ describe("search history", () => {
 
     await submit(user, "Alice", "Bob");
 
-    expect(await screen.findByRole("list", { name: "Đường đi" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "Path" })).toBeInTheDocument();
     await waitFor(() => expect(historyButtons()).toHaveLength(1));
   });
 
@@ -209,7 +209,7 @@ describe("search history", () => {
 
     await submit(user, "Alice", "Bob");
 
-    await screen.findByRole("list", { name: "Đường đi" });
+    await screen.findByRole("list", { name: "Path" });
     expect(historyButtons()).toHaveLength(1);
   });
 
@@ -220,7 +220,7 @@ describe("search history", () => {
 
     await submit(user, "Alice", "Bob");
 
-    await screen.findByRole("list", { name: "Đường đi" });
+    await screen.findByRole("list", { name: "Path" });
     expect(historyButtons()).toHaveLength(1);
   });
 });

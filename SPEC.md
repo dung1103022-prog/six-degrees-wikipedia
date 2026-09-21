@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.15 (Phase 1–4 hoàn thành; ghi dataset chính thức, nợ kỹ thuật N-1/N-2 và các lựa chọn implementation của N-4; sửa đoạn stale; logging khởi động; **không đổi contract**)
+**Version:** 2.17 (mở lại và chốt lại Q-14: đồ thị đổi sang `3d-force-graph`/Three.js, hình cầu 3D xoay được, hover hiện tên mỗi node; ô "Network Visualization" luôn được mount kể cả trước khi tìm kiếm; path trong "Shortest path" liên kết `wiki_url`; header giữa trang theo ảnh tham khảo; **không đổi contract HTTP**)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,26 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.17 — Mở lại và chốt lại Q-14 (đồ thị 3D xoay được); ô Network Visualization luôn hiện; path liên kết Wikipedia; header giữa trang
+
+Quyết định nguồn: chủ project, 2026-09-21 (kèm ảnh tham khảo header). Chỉ Phase 4 (frontend) và tài liệu; **không đổi contract HTTP** của `/api/*` hay `/share` (Phase 1–3 không đổi).
+
+- **Q-14 mở lại và chốt lại:** đồ thị đổi từ Sigma.js (2D, canvas) + Graphology sang **`3d-force-graph`** (Three.js, WebGL) để vẽ **hình cầu 3D xoay được, có chiều sâu** — phương án được chọn giữa hai lựa chọn được hỏi lại (không phải "organic scatter 2D" của phiên bản trước). Dữ liệu vẽ **vẫn chỉ lấy từ `SearchResponse`** (`levels`, `path`); không BFS, không API mới, không đổi contract HTTP — chỉ phần "thư viện vẽ" của Q-14 được mở lại, các phần còn lại của ADR-014 (React/Vite/TS, Vitest, lịch sử 20 entry) không đổi. Layout: mỗi level nằm trên một lớp vỏ hình cầu (bán kính theo level, cùng nguyên tắc "band" cũ nhưng phân bố đều trên toàn mặt cầu thay vì một vòng phẳng); toàn bộ path vẫn nằm trên một đường thẳng qua tâm. Bố cục, màu, animation vẫn **do implementation quyết định, không thuộc contract** (không đổi so với ADR-014 gốc).
+- **Hover hiện tên (mới, Q-14):** trỏ chuột vào bất kỳ node nào (không riêng path) hiện tên người tương ứng, dùng `nodeLabel` có sẵn của `3d-force-graph` (tooltip gốc của thư viện) — thay cho nhãn cố định chỉ ở path node của layout Sigma cũ; `frontend/src/graph/label.ts` (riêng cho Sigma) bị loại bỏ.
+- **Ô "Network Visualization" luôn được mount (mới):** panel này (tiêu đề + khung canvas) hiện **ngay cả khi chưa có kết quả tìm kiếm** — canvas rỗng, không node/link, không badge "Nodes explored" và không chú thích màu cho tới khi có `SearchResponse` đầu tiên. Trước v2.17 panel chỉ mount sau khi có kết quả; đây là thay đổi hành vi hiển thị thuần túy (không có test ID §7 nào khóa hành vi cũ, không phải contract). Áp dụng cho trang tìm kiếm (`SearchPage`); trang `/share` không đổi (panel đồ thị ở đó vẫn chỉ hiện khi link không hợp lệ và search mới đã xong).
+- **"Shortest path" liên kết Wikipedia (mới):** mỗi tên trong danh sách path (`PathList`) là một link `<a href={wiki_url} target="_blank" rel="noopener noreferrer">`; `wiki_url` đã có sẵn trên `PersonMeta` — không đổi contract, không sửa backend.
+- **Header giữa trang (mới):** tiêu đề "Six Degrees of Wikipedia" trên `SearchPage` chuyển vào giữa trang, kèm icon, gradient chữ và tagline "Explore the threads that tie us together" theo ảnh tham khảo chủ project gửi (2026-09-21); thuộc thị giác/CSS, không phải contract.
+- **§0.4 (hàng Q-14), ADR-014 (mục "Đồ thị") và §8 (out of scope) cập nhật để không còn nhắc "Sigma" như hiện trạng. §9: Q-14 tách thành mục riêng trong "Đã chốt", ghi rõ đã mở lại.**
+- **Không thay đổi:** mọi contract HTTP của `/api/*`, `/share`, `validate_path`, dữ liệu, fetcher, Docker; C-2, C-3, C-4, C-7 vẫn "Chưa duyệt"; Q-3 (v2.16) không đổi.
+
+### v2.16 — Mở lại và chốt lại Q-3 (UI tiếng Anh); nới lỏng exclusion "autocomplete" (§0.3)
+
+Quyết định nguồn: chủ project, 2026-09-21. Chỉ Phase 4 (frontend) và tài liệu; **không đổi contract HTTP** của `/api/*` hay `/share` (Phase 1–3 không đổi).
+
+- **Q-3 mở lại và chốt lại một phần:** ngôn ngữ của **UI hiển thị trên trình duyệt** (nhãn, nút, thông báo lỗi, lịch sử, chú thích đồ thị, tiêu đề trang, `index.html` `lang`/`description`) chuyển từ tiếng Việt (v2.5) sang **tiếng Anh**. **Không đổi:** `og:title` do `/share` sinh ra vẫn giữ nguyên format và ngôn ngữ tiếng Việt của Q-3/Q-9 (`"{first} → {last}: {n} bước"`, §5.4) — phần này **không thuộc "UI hiển thị trên màn hình"** theo yêu cầu, và đổi nó sẽ đụng vào backend (`app/share.py`) ngoài phạm vi lần này. `og:title` có thể được xem lại thành một quyết định riêng nếu cần.
+- **§0.3 (nới lỏng một phần):** dòng "không implement... autocomplete" được hiểu là **không tự tạo hạ tầng backend mới** cho gợi ý tên (không endpoint, không cache server-side, không index tìm kiếm riêng). Một **combobox thuần client** ở Start/End Person — gọi `GET /api/people` (route đã có sẵn từ Phase 1, không đổi) đúng một lần, cache trong bộ nhớ trình duyệt, lọc hoàn toàn phía client khi gõ — **được phép** và không coi là vi phạm §0.3. Không thêm route, endpoint hay tham số mới ở `/api/people`.
+- **Không thay đổi:** mọi contract HTTP của `/api/*`, `/share`, `validate_path`, dữ liệu, fetcher, Docker; C-2, C-3, C-4, C-7 vẫn "Chưa duyệt".
 
 ### v2.15 — Hoàn thành Phase 1–4; hoàn thiện tài liệu (không đổi contract)
 
@@ -257,7 +277,7 @@ Bản đầu tiên.
 | 1 | data loader + startup validation (không gồm placeholder), BFS, resolver, `validate_path`, schema, `/api/people`, `/api/search`, `/api/resolve`, `/api/path` | BFS-*, RES-*, SCH-01..08, API-*, PTH-01..10, DAT-01..07, DAT-09..16 | **Hoàn thành** *(v2.15)* |
 | 2 | `/share` (bật tường minh, §0.3 "Chế độ chạy"), kiểm tra `dist/index.html` và placeholder `<!--OG-->` lúc khởi động | SHR-*, PTH-11, DAT-08, DAT-17, DAT-18 | **Hoàn thành** *(v2.15; mở ở v2.4)* |
 | 3 | fetcher (`backend/fetcher.py`) | FET-* | **Hoàn thành** *(v2.15; mở ở v2.9)* |
-| 4 | frontend (`frontend/`, ADR-014), static mount + SPA fallback (§3.4), Dockerfile (§6.6) | FE-*, SPA-* | **Hoàn thành** *(v2.15; mở ở v2.13)*; Q-3 đã chốt (tiếng Việt, v2.5) |
+| 4 | frontend (`frontend/`, ADR-014), static mount + SPA fallback (§3.4), Dockerfile (§6.6) | FE-*, SPA-* | **Hoàn thành** *(v2.15; mở ở v2.13)*; Q-3: UI tiếng Anh (v2.16; trước đó tiếng Việt, v2.5); `og:title` vẫn tiếng Việt; Q-14: đồ thị 3D xoay được (v2.17; trước đó Sigma.js 2D, v2.13) |
 
 - Không viết code của pha chưa mở, kể cả code "chuẩn bị sẵn".
 - Pha 1 không phụ thuộc `dist/` hay frontend build: ở chế độ Phase 1 (bên dưới) app phải khởi động và chạy test được khi chưa có `dist/`.
@@ -267,7 +287,7 @@ Bản đầu tiên.
   - Test của pha 1 phải tắt `/share` tường minh, để kết quả test không phụ thuộc vào môi trường của máy chạy test (thư mục làm việc, biến môi trường, có hay không có `dist/`).
   - Cấu hình bật/tắt là tham số tường minh `enable_share` của app factory (`create_app`): chế độ Phase 1 và test pha 1 dùng `enable_share=False`; mặc định `enable_share=True` (chế độ Phase 2+ / production). `enable_share` không bao giờ được suy ra từ việc `dist/index.html` có tồn tại hay không. Khi `enable_share=False`: không kiểm tra `dist/` và `/share` không được đăng ký. Đây không phải contract HTTP.
   - **`DIST_DIR`** *(v2.6, Q-10)*: cấu hình runtime của server cho vị trí thư mục `dist/`; biến môi trường `DIST_DIR`, mặc định `./dist`. Chỉ được đọc khi `enable_share=True`. Khi `enable_share=False` không đọc `DIST_DIR` và không yêu cầu có thư mục `dist/`. Xem §5.5.
-- Không implement tính năng ngoài spec: không database, cache (kể cả cache in-process cho resolver), auth, WebSocket, task queue, image generation, runtime Wikipedia fallback, autocomplete.
+- Không implement tính năng ngoài spec: không database, cache (kể cả cache in-process cho resolver), auth, WebSocket, task queue, image generation, runtime Wikipedia fallback. *(v2.16)* "autocomplete" được nới lỏng một phần: xem changelog v2.16 và §9 (Đã chốt) — chỉ cho phép combobox thuần client trên `/api/people` có sẵn, không backend/cache/endpoint mới.
 - Chính sách sử dụng Wikimedia API phải được đối chiếu với tài liệu hiện hành khi bắt đầu pha 3.
 
 ### 0.4 Trạng thái quyết định
@@ -298,7 +318,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | C-13 | Fetcher từ chối chạy nếu thiếu `WIKI_UA_CONTACT`; không hardcode contact | §6.4 | Đã duyệt (v2.2) |
 | Q-1 | `GET /api/path` + `validate_path()` thuần dùng chung với `/share`; PTH-11 bảo đảm cùng phán quyết | §3.7, §5.3 | Đã chốt (v2.1) |
 | Q-2 | `/share` luôn 200 `text/html`; path không hợp lệ → placeholder thay bằng chuỗi rỗng, giữ meta tĩnh của `dist/index.html` | §5.4, §9 | Đã chốt (v2.4) |
-| Q-3 | Ngôn ngữ của `og:title` / UI ở phiên bản hiện tại là tiếng Việt; format trong một hằng số duy nhất | §5.4, §9 | Đã chốt (v2.5) |
+| Q-3 | Ngôn ngữ của UI hiển thị là tiếng Anh (v2.16); `og:title` của `/share` vẫn tiếng Việt, format trong một hằng số duy nhất (không đổi, v2.5/v2.9) | §5.4, §9 | Đã chốt lại (v2.16) |
 | Q-4 | Fetcher tuần tự, concurrency = 1; không có tùy chọn 2–3 | §6.4 | Đã chốt (v2.1) |
 | Q-5 | Chế độ `/share` tường minh: Phase 1 tắt; Phase 2+ bật và bắt buộc có `dist/index.html`, thiếu → fail fast; không suy ra từ việc file tồn tại | §0.3, §5.4, §5.5, §6.5 | Đã chốt (v2.5) |
 | Q-6 | `og:url` dùng base URL của request hiện tại (scheme, host, `root_path` nếu có) + path `/share` và query dựng lại từ tên đã validate; không có `PUBLIC_BASE_URL` | §5.4, §8 | Đã chốt (v2.5) |
@@ -309,7 +329,7 @@ Chỉ bảng này quyết định một điểm đã có hiệu lực hay chưa.
 | Q-11 | `thumbnail` trong `people.json` giữ nguyên URL do MediaWiki API trả về: không cắt `utm_*`/query string, không sửa kích thước trong URL | §6.2, §6.4, §5.4 | Đã chốt (v2.12) |
 | Q-12 | Frontend dùng React + Vite + TypeScript; mã nguồn ở `frontend/` | ADR-014 | Đã chốt (v2.13) |
 | Q-13 | Test frontend dùng Vitest + Testing Library; không có test e2e trong trình duyệt | ADR-014, §7.9 | Đã chốt (v2.13) |
-| Q-14 | Vẽ đồ thị bằng Sigma.js + Graphology, chỉ dùng dữ liệu của `SearchResponse` | ADR-014 | Đã chốt (v2.13) |
+| Q-14 | Vẽ đồ thị 3D xoay được (`3d-force-graph`/Three.js) bằng dữ liệu của `SearchResponse`, hover hiện tên mỗi node | ADR-014 | Đã chốt lại (v2.17; trước đó Sigma.js+Graphology, v2.13) |
 | Q-15 | Lịch sử tìm kiếm tối đa 20 entry | ADR-006, FE-02 | Đã chốt (v2.13) |
 | Q-16 | Test frontend gắn ID bằng thẻ `@spec FE-NN`; cơ chế kiểm tra đủ FE-ID bắt buộc đọc từ SPEC.md và làm bộ test thất bại khi thiếu | §0.2, §7.9 | Đã chốt (v2.13) |
 | Q-17 | Docker: `DATA_DIR=/app/data`; dataset chính thức được copy vào image lúc build; image không chạy fetcher, không gọi mạng | ADR-012, §6.6 | Đã chốt (v2.13) |
@@ -402,16 +422,16 @@ Các điểm C-3, C-4, C-7 thuộc vùng của pha 1 nhưng **không được im
   - Graph riêng cho từng ngôn ngữ hoặc chuyển sang Japanese Wikipedia graph.
   - Autocomplete / endpoint gợi ý tiền tố.
 
-### ADR-014: Stack frontend *(mới ở v2.13; Q-12, Q-13, Q-14, Q-15)*
+### ADR-014: Stack frontend *(mới ở v2.13; Q-12, Q-13, Q-14, Q-15; Q-14 mở lại và chốt lại ở v2.17)*
 - **Context:** §3.5 (type sinh từ OpenAPI), ADR-005 (animation theo level ở frontend), ADR-006 (lịch sử ở localStorage), ADR-012 (một container). Project gốc tham khảo dùng React + sigma.js.
 - **Decision:**
   - **Ngôn ngữ và build:** React + Vite + TypeScript. Mã nguồn ở `frontend/`; bản build là `dist/` của §3.4 và §5.5.
   - **Test:** Vitest + Testing Library (môi trường DOM do Vitest cấu hình). Không có test e2e trong trình duyệt. Test không gọi mạng thật (§0.2): mọi lời gọi API được mock bằng payload theo các ví dụ ở §3, và `fetch` chưa được mock làm test fail. Cách gắn ID và kiểm coverage: §7.9.
-  - **Đồ thị:** Sigma.js (render) + Graphology (cấu trúc dữ liệu phía client). Dữ liệu vẽ chỉ lấy từ `SearchResponse` (`levels`, `path`); không thêm endpoint hay field để phục vụ việc vẽ. Bố cục, màu, kiểu animation do implementation quyết định và không thuộc contract. Sigma cần WebGL nên không chạy được trong môi trường DOM của test: test không được yêu cầu render Sigma thật (component vẽ được mock hoặc tách khỏi logic dựng dữ liệu).
+  - **Đồ thị** *(v2.17, Q-14 mở lại; trước đó Sigma.js + Graphology, v2.13)*: `3d-force-graph` (Three.js, WebGL) vẽ hình cầu 3D xoay được, có chiều sâu; hover một node hiện tên người (tooltip gốc của thư viện). Dữ liệu vẽ chỉ lấy từ `SearchResponse` (`levels`, `path`); không thêm endpoint hay field để phục vụ việc vẽ. Bố cục (bán kính theo level, phân bố trên mặt cầu, path trên một đường qua tâm), màu, kiểu animation do implementation quyết định và không thuộc contract. Cần WebGL nên không chạy được trong môi trường DOM của test: test không được yêu cầu render WebGL thật (component vẽ được mock hoặc tách khỏi logic dựng dữ liệu, cùng nguyên tắc như Sigma trước đây).
   - **Lịch sử:** tối đa 20 entry (ADR-006).
   - **Version:** pin version của thư viện sau khi cài (lockfile được commit); hành vi phụ thuộc version phải được khóa bằng test, không dựa vào trí nhớ (cùng tinh thần §0.2).
 - **Consequences:** Cần Node để build (stage build của Dockerfile), không cần Node lúc chạy. Type API sinh bằng `openapi-typescript` từ `/openapi.json` (§3.5).
-- **Rejected (ở phiên bản này):** test e2e trong trình duyệt; test render WebGL của Sigma; endpoint hay field mới cho việc vẽ đồ thị.
+- **Rejected (ở phiên bản này):** test e2e trong trình duyệt; test render WebGL thật (Sigma trước v2.17, `3d-force-graph`/Three.js từ v2.17); endpoint hay field mới cho việc vẽ đồ thị.
 
 ---
 
@@ -1193,7 +1213,7 @@ Test pytest với `TestClient`, `enable_share=True`, dùng fixture `backend/test
   - Wikidata làm nguồn alias.
 - *(v2.5, og:url)*: biến cấu hình origin công khai (`PUBLIC_BASE_URL`) cho `og:url` (Q-6).
 - *(v2.13, Phase 4)*:
-  - test e2e trong trình duyệt và test render WebGL của Sigma (ADR-014);
+  - test e2e trong trình duyệt và test render WebGL thật (Sigma trước v2.17, `3d-force-graph`/Three.js từ v2.17) (ADR-014);
   - dataset nằm ngoài image (volume, tải lúc khởi động) và fetcher trong image (§6.6);
   - test tự động cho Dockerfile.
 - *(v2.1, fetcher)*:
@@ -1206,7 +1226,7 @@ Test pytest với `TestClient`, `enable_share=True`, dùng fixture `backend/test
 
 ## 9. Open questions (chưa implement cho tới khi chốt)
 
-Hiện không còn câu hỏi mở. *(v2.5: Q-3 đã chốt; v2.13: Q-12..Q-19 đã chốt, Phase 4 mở.)*
+Hiện không còn câu hỏi mở. *(v2.5: Q-3 đã chốt; v2.13: Q-12..Q-19 đã chốt, Phase 4 mở; v2.16: Q-3 mở lại và chốt lại — UI tiếng Anh, `og:title` không đổi; v2.17: Q-14 mở lại và chốt lại — đồ thị 3D xoay được.)*
 
 ### Ghi chú kỹ thuật cần review *(v2.3)*
 Không phải quyết định mở. *(v2.15: N-1 và N-2 là nợ kỹ thuật, chuyển sang mục "Nợ kỹ thuật còn lại" bên dưới.)*
@@ -1226,7 +1246,8 @@ Không chặn việc nào của Phase 1–4 (đã hoàn thành) và không phả
 - **Q-12..Q-19 (v2.13):** stack frontend (React + Vite + TypeScript; Vitest + Testing Library; Sigma.js + Graphology), history 20 entry, marker `@spec FE-NN` và cơ chế coverage FE-*, Docker `DATA_DIR=/app/data` với dataset copy vào image, static mount + SPA fallback (SPA-01..05), `thumbnail = null` (FE-06). Xem ADR-014, §3.4, §6.6, §7.9, §7.10.
 - **Q-9 (v2.6):** `n` trong `og:title` = số cạnh của path = `len(path) - 1` = `SearchResponse.length` (§5.4).
 - **Q-10 (v2.6):** `DIST_DIR` là cấu hình runtime chính thức, mặc định `./dist`, chỉ đọc khi `enable_share=True` (§0.3, §5.5).
-- **Q-3 (v2.5):** ngôn ngữ của `og:title` / UI ở phiên bản hiện tại là tiếng Việt; format giữ trong một hằng số duy nhất (§5.4).
+- **Q-3 (v2.16, mở lại và chốt lại; trước đó v2.5):** ngôn ngữ của **UI hiển thị** là tiếng Anh. `og:title` do `/share` sinh ra **không đổi**: vẫn tiếng Việt, format giữ trong một hằng số duy nhất (§5.4).
+- **Q-14 (v2.17, mở lại và chốt lại; trước đó v2.13):** đồ thị dùng `3d-force-graph` (Three.js) thay Sigma.js + Graphology — hình cầu 3D xoay được, hover hiện tên mỗi node. Dữ liệu vẫn chỉ từ `SearchResponse`, không đổi contract (ADR-014).
 - **Q-5 (v2.5):** chế độ `/share` tường minh; Phase 2+ bắt buộc có `dist/index.html`, thiếu → fail fast (§0.3, §5.5, §6.5).
 - **Q-6 (v2.5):** `og:url` dùng base URL của request hiện tại (scheme, host, `root_path` nếu có), không có `PUBLIC_BASE_URL` (§5.4).
 - **Q-7 (v2.5):** `index.html` không chứa static OG property do `/share` tạo (§5.5).

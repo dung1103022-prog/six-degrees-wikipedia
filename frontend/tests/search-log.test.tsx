@@ -22,13 +22,13 @@ afterEach(() => vi.useRealTimers());
 describe("SearchLog", () => {
   it("idle: disconnected status, an empty-state message, no list", () => {
     render(<SearchLog view={idle} />);
-    expect(screen.getByText("Ngắt kết nối")).toBeInTheDocument();
+    expect(screen.getByText("Disconnected")).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("loading: connected status, the query line, nothing about levels yet (there is no response)", () => {
     render(<SearchLog view={loading} />);
-    expect(screen.getByText("Đã kết nối")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
     const texts = lineTexts();
     expect(texts).toHaveLength(2);
     expect(texts[1]).toMatch(/"S".*"T"/);
@@ -37,7 +37,7 @@ describe("SearchLog", () => {
   it("done: level 0 is shown at once, then one more level every LEVEL_MS, ending with all of them", () => {
     render(<SearchLog view={done} />);
     expect(lineTexts()).toHaveLength(4); // connect + query + level 0's own 2 lines (shown at once)
-    expect(lineTexts().some((t) => t.startsWith("Cấp 0:"))).toBe(true);
+    expect(lineTexts().some((t) => t.startsWith("Level 0:"))).toBe(true);
 
     advance(LEVEL_MS); // level 1 revealed
     expect(lineTexts()).toHaveLength(6);
@@ -45,7 +45,7 @@ describe("SearchLog", () => {
     advance(LEVEL_MS * (LEVELS.length + 5)); // run past the end: nothing more appears, nothing crashes
     const finalTexts = lineTexts();
     expect(finalTexts).toHaveLength(10); // connect + query + 2 lines per level (4 levels)
-    LEVELS.forEach((_level, k) => expect(finalTexts.some((t) => t.startsWith(`Cấp ${k}:`))).toBe(true));
+    LEVELS.forEach((_level, k) => expect(finalTexts.some((t) => t.startsWith(`Level ${k}:`))).toBe(true));
     for (const name of PATH) expect(finalTexts.some((t) => t.includes(name))).toBe(true);
   });
 
@@ -53,7 +53,7 @@ describe("SearchLog", () => {
     render(<SearchLog view={failed} />);
     const texts = lineTexts();
     expect(texts).toHaveLength(3);
-    expect(texts[2]).toMatch(/không thành công/i);
+    expect(texts[2]).toMatch(/search failed/i);
   });
 
   it("never fetches and runs no BFS of its own", async () => {
@@ -67,6 +67,6 @@ describe("SearchLog", () => {
     advance(LEVEL_MS * 10);
     const other: View = { status: "done", query: { from: "X", to: "Y" }, response: { ...RESPONSE, levels: RESPONSE.levels.slice(0, 1) } };
     rerender(<SearchLog view={other} />);
-    expect((lineTexts()).some((t) => t.includes("Cấp 1"))).toBe(false);
+    expect((lineTexts()).some((t) => t.includes("Level 1"))).toBe(false);
   });
 });

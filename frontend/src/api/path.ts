@@ -23,9 +23,9 @@ export async function fetchPath(names: readonly string[]): Promise<PathOutcome> 
   try {
     response = await fetch(queryString === "" ? "/api/path" : `/api/path?${queryString}`);
   } catch {
-    return { ok: false, reason: "không kết nối được tới máy chủ" };
+    return { ok: false, reason: "could not connect to the server" };
   }
-  if (!response.ok) return { ok: false, reason: `lỗi HTTP ${response.status}` };
+  if (!response.ok) return { ok: false, reason: `HTTP error ${response.status}` };
 
   let body: unknown = null;
   try {
@@ -33,5 +33,5 @@ export async function fetchPath(names: readonly string[]): Promise<PathOutcome> 
   } catch {
     // not JSON: reported below
   }
-  return isPathResponse(body) ? { ok: true, response: body } : { ok: false, reason: "máy chủ trả về dữ liệu không đúng dạng" };
+  return isPathResponse(body) ? { ok: true, response: body } : { ok: false, reason: "server returned data in an unexpected format" };
 }

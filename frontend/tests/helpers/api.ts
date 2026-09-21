@@ -17,7 +17,11 @@ export function mockApi(handler: Handler) {
     const raw = input instanceof Request ? input.url : String(input);
     const url = new URL(raw, "http://localhost");
     calls.push(url);
-    const reply = handler(url);
+    // The Start/End combobox (PersonCombobox) calls GET /api/people on focus (src/lib/people.ts):
+    // most tests never mean to exercise that, so an untouched handler gets an empty list here rather
+    // than failing the test — a test that cares about /api/people can still return its own reply for
+    // it from `handler`, which is tried first.
+    const reply = handler(url) ?? (url.pathname === "/api/people" ? { body: [] } : undefined);
     if (!reply) throw new Error(`Test has no mock for ${url.pathname}${url.search}`);
     return new Response(JSON.stringify(reply.body), {
       status: reply.status ?? 200,

@@ -7,6 +7,7 @@ import type { ErrorDetail, PersonMeta, SearchResponse } from "../api/types";
 import GraphView from "../components/GraphView";
 import HistoryList from "../components/HistoryList";
 import PathList from "../components/PathList";
+import PersonCombobox from "../components/PersonCombobox";
 import SearchFailureView from "../components/SearchFailureView";
 import SearchLog from "../components/SearchLog";
 import { useHistory, type HistoryEntry } from "../lib/history";
@@ -71,21 +72,25 @@ export default function SearchPage() {
   return (
     <div className="page">
       <header className="hero">
-        <h1>Six Degrees of Wikipedia</h1>
+        <div className="hero-title">
+          <svg className="hero-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+            <rect x="2" y="16" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+            <rect x="16" y="16" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M12 8v4m0 0h-7v4m7-4h7v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <h1>Six Degrees of Wikipedia</h1>
+        </div>
+        <p className="hero-tagline">Explore the threads that tie us together</p>
+        <span className="hero-underline" aria-hidden="true" />
       </header>
       <div className="layout-columns">
         <section className="col-left">
           <div className="card">
             <h2 className="card-title">{strings.pathfindingSearchTitle}</h2>
             <form onSubmit={submit} className="search-form">
-              <div className="field">
-                <label htmlFor="search-from">{strings.from}</label>
-                <input id="search-from" value={from} onChange={(e) => setFrom(e.target.value)} />
-              </div>
-              <div className="field">
-                <label htmlFor="search-to">{strings.to}</label>
-                <input id="search-to" value={to} onChange={(e) => setTo(e.target.value)} />
-              </div>
+              <PersonCombobox id="search-from" label={strings.from} value={from} onChange={setFrom} />
+              <PersonCombobox id="search-to" label={strings.to} value={to} onChange={setTo} />
               <button type="submit" disabled={!canSearch} className="btn">
                 {strings.search}
               </button>
@@ -103,7 +108,11 @@ export default function SearchPage() {
 
           <SearchLog view={view} />
         </section>
-        <section className="col-right">{view.status === "done" ? <GraphView response={view.response} /> : null}</section>
+        <section className="col-right">
+          {/* Always mounted (design: 2026-09-21, "Network Visualization luôn hiện"), even before
+              a search: GraphView draws an empty scene until a SearchResponse exists. */}
+          <GraphView response={view.status === "done" ? view.response : null} />
+        </section>
       </div>
     </div>
   );
