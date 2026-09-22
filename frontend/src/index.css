@@ -36,7 +36,11 @@
 
 body {
   margin: 0;
-  background: var(--color-bg);
+  /* Static fallback for the ambient WebGL background (design: 2026-09-22, AmbientBackground.tsx):
+     this gradient alone is what shows when JS hasn't mounted yet, WebGL is unavailable, or the
+     visitor has prefers-reduced-motion on -- so it approximates the shader's own base sky colors
+     rather than the old flat --color-bg, and never itself needs to look "unfinished". */
+  background: radial-gradient(ellipse 80% 60% at 50% 20%, #120f22 0%, transparent 60%), linear-gradient(to bottom, #050510 0%, #0c0a1a 45%, #050510 100%);
   color: var(--color-body);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
@@ -564,4 +568,24 @@ h2 {
 .path-item a:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+
+/* ------------------------------------------------------------------------- ambient background
+   (design: 2026-09-22): AmbientBackground.tsx's canvas, fixed behind every page. `.page` (and every
+   card/surface on it) is already transparent/has its own solid background, so nothing else here
+   needed to change for this to show through. Decorative only -- aria-hidden in the component, and
+   pointer-events stay off so it never intercepts clicks or drags meant for the real UI. */
+
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.ambient-bg-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }

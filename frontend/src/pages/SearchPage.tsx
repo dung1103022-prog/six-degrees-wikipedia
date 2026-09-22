@@ -1,7 +1,7 @@
 // The search page (SPEC §3.2, ADR-005, FE-03). One GET /api/search per search; a failure is shown by
 // `detail.code`; choosing a candidate of AMBIGUOUS_NAME searches again with its canonical name.
 // The successful SearchResponse is kept in `view` (path and levels) for what draws it next.
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { searchPeople, type SearchFailure } from "../api/search";
 import type { ErrorDetail, PersonMeta, SearchResponse } from "../api/types";
 import GraphView from "../components/GraphView";
@@ -10,6 +10,7 @@ import PathList from "../components/PathList";
 import PersonCombobox from "../components/PersonCombobox";
 import SearchFailureView from "../components/SearchFailureView";
 import SearchLog from "../components/SearchLog";
+import { useBackgroundQuality } from "../lib/backgroundQuality";
 import { useHistory, type HistoryEntry } from "../lib/history";
 import { strings } from "../ui/strings";
 
@@ -30,6 +31,15 @@ export default function SearchPage() {
   const [view, setView] = useState<View>({ status: "idle" });
   const latest = useRef(0); // only the newest search may update the page
   const { entries: history, add: remember } = useHistory();
+  const { setGraphActive } = useBackgroundQuality();
+
+  // While the 3D graph panel is actually drawing a result (its own, separate WebGL context), the
+  // ambient background (design: 2026-09-22) turns its own quality down rather than compete for GPU
+  // time. Cleared on unmount too, so leaving the page never leaves the background stuck reduced.
+  useEffect(() => {
+    setGraphActive(view.status === "done");
+    return () => setGraphActive(false);
+  }, [view.status, setGraphActive]);
 
   async function run(query: Query, record = true): Promise<void> {
     const id = ++latest.current;

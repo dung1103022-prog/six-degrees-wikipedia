@@ -11,6 +11,7 @@ import type { ErrorDetail, PersonMeta, SearchResponse } from "../api/types";
 import GraphView from "../components/GraphView";
 import PathList from "../components/PathList";
 import SearchFailureView from "../components/SearchFailureView";
+import { useBackgroundQuality } from "../lib/backgroundQuality";
 import { parseShareNames } from "../lib/shareUrl";
 import { strings } from "../ui/strings";
 
@@ -37,6 +38,15 @@ export default function SharePage() {
   const [search, setSearch] = useState<NewSearch>({ status: "none" });
   const latest = useRef(0); // only the newest new-search may update the page
   const started = useRef(false); // /api/path is asked once per page load
+  const { setGraphActive } = useBackgroundQuality();
+
+  // Same reasoning as SearchPage (design: 2026-09-22): this page draws GraphView only once a link
+  // turns out invalid and its replacement search has an answer -- that is the one case worth easing
+  // the ambient background back for.
+  useEffect(() => {
+    setGraphActive(path.status === "invalid" && search.status === "done");
+    return () => setGraphActive(false);
+  }, [path.status, search.status, setGraphActive]);
 
   async function runSearch(query: Query): Promise<void> {
     const id = ++latest.current;

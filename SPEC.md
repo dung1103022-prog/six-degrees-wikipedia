@@ -1,6 +1,6 @@
 # Six Degrees of Wikipedia (Python) — Implementation Spec
 
-**Version:** 2.18 (layout đồ thị: path zích zắc theo vị trí cố định trên vỏ cầu thay vì một đường thẳng qua tâm; thêm pan bằng phím mũi tên/WASD và nút "Reset view"; cả hai vẫn nằm trong phần layout/tương tác do implementation quyết định của ADR-014, **không đổi contract HTTP**, không mở lại quyết định nào)
+**Version:** 2.19 (thêm nền trang trí "bầu trời đêm" WebGL toàn ứng dụng — dải núi/mây phát sáng, sao lấp lánh, sao băng ngẫu nhiên, trôi dạt theo chuột — thuần thị giác/CSS-tương-đương, **không đổi contract HTTP**, không mở lại quyết định nào)
 
 > Tài liệu này là nguồn sự thật (source of truth) cho việc implement.
 > Khi code và spec mâu thuẫn, spec thắng. Khi spec mơ hồ hoặc thiếu, **hỏi lại, không tự suy diễn**.
@@ -11,6 +11,15 @@ Project gốc tham khảo: `Rani-Codes/sixth_degree` (Go + React + sigma.js).
 ---
 
 ## Changelog
+
+### v2.19 — Nền trang trí "bầu trời đêm" WebGL (toàn ứng dụng)
+
+Quyết định nguồn: chủ project, 2026-09-22 (kèm video tham khảo). Chỉ Phase 4 (frontend); **không đổi contract HTTP** của `/api/*` hay `/share`; không phải một phần của đồ thị (ADR-014) — đây là nền của toàn bộ trang, độc lập với `GraphView`.
+
+- **`AmbientBackground.tsx` (mới):** một canvas WebGL toàn màn hình, mount đúng một lần ở `App.tsx` (phía sau `SearchPage`/`SharePage`, không phải bên trong từng trang) — năm lớp "dải núi/mây" phát sáng viền mờ dần theo lớp (fbm noise), nền sao lấp lánh, thỉnh thoảng có sao băng ngẫu nhiên, và toàn bộ các lớp trôi dạt nhẹ theo vị trí chuột (khác tốc độ mỗi lớp) tạo cảm giác bồng bềnh khi rê chuột. Thuần trang trí: không đọc dữ liệu gì của ứng dụng, không chi phối hành vi nào khác — shader viết mới hoàn toàn trong `AmbientBackground.tsx`, không phụ thuộc package ngoài, không gọi mạng.
+- **Thoái lui an toàn (graceful degradation), ba lớp:** (1) `prefers-reduced-motion: reduce` → không tạo canvas/WebGL context nào cả, chỉ còn gradient tĩnh có sẵn trên `<body>` (`index.css`); (2) WebGL không khả dụng hoặc biên dịch shader/program lỗi → bắt lỗi, ẩn canvas, cùng gradient tĩnh đó; (3) khi panel đồ thị 3D (`GraphView`) đang vẽ một kết quả thật (context WebGL riêng của nó) → nền tự giảm chất lượng (giới hạn device-pixel-ratio thấp hơn, khung hình ~24fps thay vì không giới hạn) qua `../lib/backgroundQuality.tsx` (context nhỏ, `SearchPage`/`SharePage` gọi `setGraphActive` theo đúng lúc `GraphView` của trang đó có dữ liệu thật, không phải chỉ mount rỗng) — để nhường GPU cho đồ thị thay vì cạnh tranh.
+- **`index.css`:** `body` đổi từ nền phẳng `--color-bg` sang một gradient tĩnh gần màu nền của shader (dùng làm fallback ở cả ba trường hợp thoái lui trên); thêm `.ambient-bg`/`.ambient-bg-canvas` (canvas cố định toàn viewport, `z-index: -1`, `pointer-events: none`, `aria-hidden`) — `.page` và mọi card/surface hiện có đã trong suốt sẵn nên không cần sửa gì thêm để lộ nền phía sau.
+- **Không thay đổi:** mọi contract HTTP; ADR-014 và mọi quyết định về đồ thị 3D (Q-14, v2.17, v2.18) không đổi — `GraphView` không được sửa, chỉ gọi thêm `setGraphActive` từ `SearchPage`/`SharePage`.
 
 ### v2.18 — Layout path zích zắc; pan (mũi tên/WASD) + nút Reset view
 
